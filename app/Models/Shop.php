@@ -39,7 +39,7 @@ class Shop extends Model
 
     public function getLogoUrlAttribute()
     {
-        return $this->logo ? \Storage::disk('public')->url($this->logo) : null;
+        return $this->logo ? asset($this->logo) : null;
     }
 
     // Encrypting api_key instead of hashing if we need to retrieve it.

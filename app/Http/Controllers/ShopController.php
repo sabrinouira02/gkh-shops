@@ -54,8 +54,10 @@ class ShopController extends Controller
         ]);
 
         if ($request->hasFile('logo')) {
-            $path = $request->file('logo')->store('shops/logos', 'public');
-            $validated['logo'] = $path;
+            $file = $request->file('logo');
+            $filename = time() . '_' . $file->getClientOriginalName();
+            $file->move(public_path('uploads/shops/logos'), $filename);
+            $validated['logo'] = 'uploads/shops/logos/' . $filename;
         }
 
         Shop::create($validated);
@@ -84,11 +86,13 @@ class ShopController extends Controller
 
         if ($request->hasFile('logo')) {
             // Delete old logo if exists
-            if ($shop->logo && \Storage::disk('public')->exists($shop->logo)) {
-                \Storage::disk('public')->delete($shop->logo);
+            if ($shop->logo && file_exists(public_path($shop->logo))) {
+                unlink(public_path($shop->logo));
             }
-            $path = $request->file('logo')->store('shops/logos', 'public');
-            $validated['logo'] = $path;
+            $file = $request->file('logo');
+            $filename = time() . '_' . $file->getClientOriginalName();
+            $file->move(public_path('uploads/shops/logos'), $filename);
+            $validated['logo'] = 'uploads/shops/logos/' . $filename;
         }
 
         $shop->update($validated);
@@ -98,8 +102,8 @@ class ShopController extends Controller
 
     public function destroy(Shop $shop)
     {
-        if ($shop->logo && \Storage::disk('public')->exists($shop->logo)) {
-            \Storage::disk('public')->delete($shop->logo);
+        if ($shop->logo && file_exists(public_path($shop->logo))) {
+            unlink(public_path($shop->logo));
         }
         $shop->delete();
         return redirect()->route('shops.index')->with('success', 'Boutique supprimée avec succès.');
