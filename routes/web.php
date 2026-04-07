@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+use App\Http\Controllers\KS1Controller;
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', function () {
@@ -59,3 +60,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
 require __DIR__ . '/settings.php';
 require __DIR__ . '/auth.php';
+
+// KS1 Synchronization API
+Route::prefix('ks1/{shop}')->group(function () {
+    Route::get('get_orders.php', [\App\Http\Controllers\KS1Controller::class, 'getOrders']);
+    Route::get('get_order.php', [\App\Http\Controllers\KS1Controller::class, 'getOrder']);
+    Route::get('get_customer.php', [\App\Http\Controllers\KS1Controller::class, 'getCustomer']);
+    Route::get('get_address.php', [\App\Http\Controllers\KS1Controller::class, 'getAddress']);
+    Route::post('update_status.php', [\App\Http\Controllers\KS1Controller::class, 'updateStatus']);
+});

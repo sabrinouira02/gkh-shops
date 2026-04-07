@@ -20,6 +20,8 @@ class Shop extends Model
         'status',
         'last_sync_at',
         'category_id',
+        'ks1_enabled',
+        'ks1_settings',
     ];
 
     /**
@@ -33,6 +35,8 @@ class Shop extends Model
     protected $casts = [
         'is_active' => 'boolean',
         'last_sync_at' => 'datetime',
+        'ks1_enabled' => 'boolean',
+        'ks1_settings' => 'array',
     ];
 
     protected $appends = ['logo_url'];

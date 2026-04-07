@@ -1151,8 +1151,13 @@ XML;
         if (!empty($filters) && is_array($filters)) {
             foreach ($filters as $field => $value) {
                 if ($value !== null && $value !== '') {
-                    // PrestaShop uses filter[field]=%[value]% for partial matching
-                    $urlParams["filter[$field]"] = "%[$value]%";
+                    if (is_string($value) && str_starts_with($value, '[') && str_ends_with($value, ']')) {
+                        // Exact match or set of IDs already formatted [x|y]
+                        $urlParams["filter[$field]"] = $value;
+                    } else {
+                        // Partial match
+                        $urlParams["filter[$field]"] = "%[$value]%";
+                    }
                 }
             }
         }
@@ -1170,7 +1175,11 @@ XML;
             if (!empty($filters) && is_array($filters)) {
                 foreach ($filters as $field => $value) {
                     if ($value !== null && $value !== '') {
-                        $countParams["filter[$field]"] = "%[$value]%";
+                        if (is_string($value) && str_starts_with($value, '[') && str_ends_with($value, ']')) {
+                            $countParams["filter[$field]"] = $value;
+                        } else {
+                            $countParams["filter[$field]"] = "%[$value]%";
+                        }
                     }
                 }
             }

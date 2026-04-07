@@ -67,9 +67,17 @@ class ShopController extends Controller
 
     public function edit(Shop $shop)
     {
+        $orderStates = [];
+        try {
+            $orderStates = $this->service->getOrderStates($shop->url, $shop->api_key);
+        } catch (\Exception $e) {
+            \Log::error("Get Order States Error: " . $e->getMessage());
+        }
+
         return Inertia::render('Shops/Edit', [
             'shop' => $shop,
-            'categories' => \App\Models\Category::all()
+            'categories' => \App\Models\Category::all(),
+            'order_states' => $orderStates
         ]);
     }
 
@@ -82,6 +90,8 @@ class ShopController extends Controller
             'api_key' => 'required|string',
             'category_id' => 'nullable|exists:categories,id',
             'logo' => 'nullable|image|max:2048',
+            'ks1_enabled' => 'boolean',
+            'ks1_settings' => 'nullable|array',
         ]);
 
         if ($request->hasFile('logo')) {

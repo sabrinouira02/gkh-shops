@@ -2,7 +2,7 @@ import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { CButton, CCard, CCardBody, CCol, CContainer, CForm, CFormInput, CFormLabel, CFormSelect, CFormTextarea, CRow, CFormSwitch, CInputGroup, CInputGroupText } from '@coreui/react-pro';
 import { Head, useForm, Link, router } from '@inertiajs/react';
-import { Save, ArrowLeft, Info, Trash, Tag } from 'lucide-react';
+import { Save, ArrowLeft, Info, Trash, Tag, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import React from 'react';
 
@@ -14,13 +14,35 @@ interface Shop {
     api_key: string;
     description: string | null;
     is_active: boolean;
-    logo: string | null;
     logo_url: string | null;
     category_id: number | null;
+    ks1_enabled: boolean;
+    ks1_settings: {
+        order_states: number[];
+        [key: string]: any;
+    };
 }
 
-export default function Edit({ shop, categories }: { shop: Shop, categories: any[] }) {
+export default function Edit({ shop, categories, order_states = [] }: { shop: Shop, categories: any[], order_states?: any[] }) {
     const { t } = useTranslation();
+    const initialKs1Settings = {
+        ks1_id: '',
+        ks1_user: '',
+        ks1_pass: '',
+        ks1_salesman: '',
+        ks1_shop_identifier: '',
+        ks1_project: 'Lager',
+        shipping_cost_id: '9999',
+        conditions: '14 Tage Netto',
+        conditions_days: 14,
+        discount: 0,
+        discount_days: 0,
+        delivery_date: 4,
+        weight_per_package: 15,
+        order_states: [2],
+        ...(shop.ks1_settings || {})
+    };
+
     const { data, setData, post, processing, errors } = useForm({
         _method: 'put',
         name: shop.name || '',
@@ -31,6 +53,8 @@ export default function Edit({ shop, categories }: { shop: Shop, categories: any
         description: shop.description || '',
         is_active: !!shop.is_active,
         category_id: shop.category_id || '',
+        ks1_enabled: !!shop.ks1_enabled,
+        ks1_settings: initialKs1Settings
     });
 
     const breadcrumbs: BreadcrumbItem[] = [
@@ -165,27 +189,190 @@ export default function Edit({ shop, categories }: { shop: Shop, categories: any
                                     </div>
 
                                     <div className="mb-4">
-                                        <CFormSwitch 
-                                            id="is_active" 
-                                            label={t('shop_active')} 
+                                        <CFormSwitch
+                                            id="is_active"
+                                            label={t('shop_active')}
                                             checked={data.is_active}
                                             onChange={(e) => setData('is_active', e.target.checked)}
                                         />
                                     </div>
 
+                                    <div className="mb-4 p-3 bg-body-tertiary rounded border border-primary border-opacity-10">
+                                        <div className="d-flex align-items-center gap-2 mb-3">
+                                            <RefreshCw size={20} className="text-primary" />
+                                            <h5 className="mb-0 fw-bold">Synchronisation KS1</h5>
+                                        </div>
+
+                                        <div className="mb-3">
+                                            <CFormSwitch
+                                                id="ks1_enabled"
+                                                label="Activer la synchronisation KS1"
+                                                checked={data.ks1_enabled}
+                                                onChange={(e) => setData('ks1_enabled', e.target.checked)}
+                                            />
+                                        </div>
+
+                                        {data.ks1_enabled && (
+                                            <div className="ms-4 ps-2 border-start border-primary border-opacity-25">
+                                                <div className="mb-3">
+                                                    <CFormLabel className="small fw-bold">États de commande à transmettre</CFormLabel>
+                                                    <div className="d-flex flex-wrap gap-2 mb-3">
+                                                        {order_states.map((state) => (
+                                                            <div key={state.id} className="form-check">
+                                                                <input
+                                                                    className="form-check-input"
+                                                                    type="checkbox"
+                                                                    id={`state_${state.id}`}
+                                                                    checked={data.ks1_settings.order_states.includes(Number(state.id))}
+                                                                    onChange={(e) => {
+                                                                        const id = Number(state.id);
+                                                                        const current = [...data.ks1_settings.order_states];
+                                                                        if (e.target.checked) {
+                                                                            if (!current.includes(id)) current.push(id);
+                                                                        } else {
+                                                                            const index = current.indexOf(id);
+                                                                            if (index > -1) current.splice(index, 1);
+                                                                        }
+                                                                        setData('ks1_settings', { ...data.ks1_settings, order_states: current });
+                                                                    }}
+                                                                />
+                                                                <label className="form-check-label small" htmlFor={`state_${state.id}`}>
+                                                                    {state.name}
+                                                                </label>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                <CRow className="g-3 mb-3">
+                                                    <CCol md={6}>
+                                                        <CFormLabel className="small fw-bold">KS1-ID</CFormLabel>
+                                                        <CFormInput
+                                                            size="sm"
+                                                            value={data.ks1_settings.ks1_id}
+                                                            onChange={(e) => setData('ks1_settings', { ...data.ks1_settings, ks1_id: e.target.value })}
+                                                        />
+                                                    </CCol>
+                                                    <CCol md={6}>
+                                                        <CFormLabel className="small fw-bold">Verkäufer (Salesman)</CFormLabel>
+                                                        <CFormInput
+                                                            size="sm"
+                                                            value={data.ks1_settings.ks1_salesman}
+                                                            onChange={(e) => setData('ks1_settings', { ...data.ks1_settings, ks1_salesman: e.target.value })}
+                                                        />
+                                                    </CCol>
+                                                    <CCol md={6}>
+                                                        <CFormLabel className="small fw-bold">Benutzer (KS1-User)</CFormLabel>
+                                                        <CFormInput
+                                                            size="sm"
+                                                            value={data.ks1_settings.ks1_user}
+                                                            onChange={(e) => setData('ks1_settings', { ...data.ks1_settings, ks1_user: e.target.value })}
+                                                        />
+                                                    </CCol>
+                                                    <CCol md={6}>
+                                                        <CFormLabel className="small fw-bold">Passwort</CFormLabel>
+                                                        <CFormInput
+                                                            type="password"
+                                                            size="sm"
+                                                            value={data.ks1_settings.ks1_pass}
+                                                            onChange={(e) => setData('ks1_settings', { ...data.ks1_settings, ks1_pass: e.target.value })}
+                                                        />
+                                                    </CCol>
+                                                    <CCol md={6}>
+                                                        <CFormLabel className="small fw-bold">Shop Identifier</CFormLabel>
+                                                        <CFormInput
+                                                            size="sm"
+                                                            value={data.ks1_settings.ks1_shop_identifier}
+                                                            onChange={(e) => setData('ks1_settings', { ...data.ks1_settings, ks1_shop_identifier: e.target.value })}
+                                                        />
+                                                    </CCol>
+                                                    <CCol md={6}>
+                                                        <CFormLabel className="small fw-bold">Projekt</CFormLabel>
+                                                        <CFormInput
+                                                            size="sm"
+                                                            value={data.ks1_settings.ks1_project}
+                                                            onChange={(e) => setData('ks1_settings', { ...data.ks1_settings, ks1_project: e.target.value })}
+                                                        />
+                                                    </CCol>
+                                                </CRow>
+
+                                                <CRow className="g-3 mb-3">
+                                                    <CCol md={6}>
+                                                        <CFormLabel className="small fw-bold">Conditions (Texte)</CFormLabel>
+                                                        <CFormInput
+                                                            size="sm"
+                                                            value={data.ks1_settings.conditions}
+                                                            onChange={(e) => setData('ks1_settings', { ...data.ks1_settings, conditions: e.target.value })}
+                                                        />
+                                                    </CCol>
+                                                    <CCol md={3}>
+                                                        <CFormLabel className="small fw-bold">Skonto %</CFormLabel>
+                                                        <CFormInput
+                                                            type="number"
+                                                            step="0.01"
+                                                            size="sm"
+                                                            value={data.ks1_settings.discount}
+                                                            onChange={(e) => setData('ks1_settings', { ...data.ks1_settings, discount: Number(e.target.value) })}
+                                                        />
+                                                    </CCol>
+                                                    <CCol md={3}>
+                                                        <CFormLabel className="small fw-bold">Skonto Tage</CFormLabel>
+                                                        <CFormInput
+                                                            type="number"
+                                                            size="sm"
+                                                            value={data.ks1_settings.discount_days}
+                                                            onChange={(e) => setData('ks1_settings', { ...data.ks1_settings, discount_days: Number(e.target.value) })}
+                                                        />
+                                                    </CCol>
+                                                    <CCol md={4}>
+                                                        <CFormLabel className="small fw-bold">Shipping Cost ID</CFormLabel>
+                                                        <CFormInput
+                                                            size="sm"
+                                                            value={data.ks1_settings.shipping_cost_id}
+                                                            onChange={(e) => setData('ks1_settings', { ...data.ks1_settings, shipping_cost_id: e.target.value })}
+                                                        />
+                                                    </CCol>
+                                                    <CCol md={4}>
+                                                        <CFormLabel className="small fw-bold">Delivery Date (Days)</CFormLabel>
+                                                        <CFormInput
+                                                            type="number"
+                                                            size="sm"
+                                                            value={data.ks1_settings.delivery_date}
+                                                            onChange={(e) => setData('ks1_settings', { ...data.ks1_settings, delivery_date: Number(e.target.value) })}
+                                                        />
+                                                    </CCol>
+                                                    <CCol md={4}>
+                                                        <CFormLabel className="small fw-bold">Weight/Package (kg)</CFormLabel>
+                                                        <CFormInput
+                                                            type="number"
+                                                            size="sm"
+                                                            value={data.ks1_settings.weight_per_package}
+                                                            onChange={(e) => setData('ks1_settings', { ...data.ks1_settings, weight_per_package: Number(e.target.value) })}
+                                                        />
+                                                    </CCol>
+                                                </CRow>
+
+                                                <div className="mb-2 p-2 bg-white bg-opacity-50 rounded border small">
+                                                    <div className="fw-bold text-primary mb-1">URL Endpoint pour KS1 :</div>
+                                                    <code className="text-break">{window.location.origin}/ks1/{shop.id}/</code>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
                                     <div className="d-flex justify-content-between pt-3 border-top">
-                                        <CButton 
+                                        <CButton
                                             type="button"
-                                            color="danger" 
+                                            color="danger"
                                             variant="ghost"
                                             className="d-flex align-items-center gap-2"
                                             onClick={handleDelete}
                                         >
                                             <Trash size={18} /> {t('delete')}
                                         </CButton>
-                                        <CButton 
-                                            type="submit" 
-                                            color="primary" 
+                                        <CButton
+                                            type="submit"
+                                            color="primary"
                                             className="px-5 d-flex align-items-center gap-2 shadow-sm"
                                             disabled={processing}
                                         >
@@ -203,7 +390,7 @@ export default function Edit({ shop, categories }: { shop: Shop, categories: any
                                     <Info size={20} /> {t('api_connection_title')}
                                 </h5>
                                 <p className="small text-secondary mb-0">
-                                   {t('last_success_sync')} : {shop.url}
+                                    {t('last_success_sync')} : {shop.url}
                                 </p>
                             </CCardBody>
                         </CCard>
