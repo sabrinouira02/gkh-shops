@@ -47,9 +47,16 @@ class ShopController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'url' => 'required|url',
+            'admin_url' => 'required|url',
             'api_key' => 'required|string',
             'category_id' => 'nullable|exists:categories,id',
+            'logo' => 'nullable|image|max:2048',
         ]);
+
+        if ($request->hasFile('logo')) {
+            $path = $request->file('logo')->store('shops/logos', 'public');
+            $validated['logo'] = $path;
+        }
 
         Shop::create($validated);
 
@@ -69,9 +76,20 @@ class ShopController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'url' => 'required|url',
+            'admin_url' => 'required|url',
             'api_key' => 'required|string',
             'category_id' => 'nullable|exists:categories,id',
+            'logo' => 'nullable|image|max:2048',
         ]);
+
+        if ($request->hasFile('logo')) {
+            // Delete old logo if exists
+            if ($shop->logo && \Storage::disk('public')->exists($shop->logo)) {
+                \Storage::disk('public')->delete($shop->logo);
+            }
+            $path = $request->file('logo')->store('shops/logos', 'public');
+            $validated['logo'] = $path;
+        }
 
         $shop->update($validated);
 
@@ -80,6 +98,9 @@ class ShopController extends Controller
 
     public function destroy(Shop $shop)
     {
+        if ($shop->logo && \Storage::disk('public')->exists($shop->logo)) {
+            \Storage::disk('public')->delete($shop->logo);
+        }
         $shop->delete();
         return redirect()->route('shops.index')->with('success', 'Boutique supprimée avec succès.');
     }

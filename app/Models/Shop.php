@@ -35,6 +35,13 @@ class Shop extends Model
         'last_sync_at' => 'datetime',
     ];
 
+    protected $appends = ['logo_url'];
+
+    public function getLogoUrlAttribute()
+    {
+        return $this->logo ? \Storage::disk('public')->url($this->logo) : null;
+    }
+
     // Encrypting api_key instead of hashing if we need to retrieve it.
     // For now, I'll use standard string because we need to use it.
 }

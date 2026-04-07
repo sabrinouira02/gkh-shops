@@ -26,6 +26,7 @@ interface Shop {
     status: 'connecting' | 'active' | 'error';
     is_active: boolean;
     logo: string | null;
+    logo_url: string | null;
     last_sync_at: string | null;
     category?: {
         name: string;
@@ -203,8 +204,8 @@ export default function Index({ shops, params = { filters: {} } }: { shops: Shop
                                     shops.map((shop) => (
                                         <CTableRow key={shop.id}>
                                             <CTableDataCell className="ps-4">
-                                                {shop.logo ? (
-                                                    <img src={shop.logo} alt={shop.name} style={{ width: '40px', height: '40px', objectFit: 'contain' }} className="rounded border bg-body-emphasis p-1" />
+                                                {shop.logo_url ? (
+                                                    <img src={shop.logo_url} alt={shop.name} style={{ width: '40px', height: '40px', objectFit: 'contain' }} className="rounded border bg-body-emphasis p-1" />
                                                 ) : (
                                                     <div className="rounded border bg-body-tertiary d-flex align-items-center justify-content-center" style={{ width: '40px', height: '40px' }}>
                                                         <span className="text-secondary small">N/A</span>

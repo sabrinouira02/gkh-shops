@@ -1,4 +1,4 @@
-﻿import AppLayout from '@/layouts/app-layout';
+import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { CButton, CCard, CCardBody, CCol, CContainer, CForm, CFormInput, CFormLabel, CFormSelect, CFormTextarea, CRow, CFormSwitch, CInputGroup, CInputGroupText } from '@coreui/react-pro';
 import { Head, useForm, Link, router } from '@inertiajs/react';
@@ -15,6 +15,7 @@ interface Shop {
     description: string | null;
     is_active: boolean;
     logo: string | null;
+    logo_url: string | null;
     category_id: number | null;
 }
 
@@ -103,8 +104,8 @@ export default function Edit({ shop, categories }: { shop: Shop, categories: any
                                     <div className="mb-3">
                                         <CFormLabel htmlFor="logo">{t('shop_logo')}</CFormLabel>
                                         <div className="mb-2 d-flex align-items-center gap-3">
-                                            {shop.logo && (
-                                                <img src={shop.logo} alt="Current Logo" style={{ width: '50px', height: '50px', objectFit: 'contain' }} className="rounded border bg-light p-1" />
+                                            {shop.logo_url && (
+                                                <img src={shop.logo_url} alt="Current Logo" style={{ width: '50px', height: '50px', objectFit: 'contain' }} className="rounded border bg-light p-1" />
                                             )}
                                             <CFormInput
                                                 type="file"

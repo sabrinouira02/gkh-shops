@@ -194,8 +194,8 @@ export default function Show({ shop, stats, chart_data, current_days, carriers =
                         <div className="shop-logo-wrapper position-relative">
                             <div className="logo-glow position-absolute top-50 start-50 translate-middle rounded-circle"></div>
                             <div className="bg-body-tertiary p-2 rounded-4 shadow border d-flex align-items-center justify-content-center position-relative" style={{ width: '80px', height: '80px', zIndex: 1 }}>
-                                {shop.logo ? (
-                                    <img src={shop.logo} alt={shop.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                                {shop.logo_url ? (
+                                    <img src={shop.logo_url} alt={shop.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                                 ) : (
                                     <Globe size={40} className="text-primary opacity-75" />
                                 )}
