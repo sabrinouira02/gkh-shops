@@ -1,13 +1,14 @@
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { CCard, CCardBody, CContainer, CRow, CCol, CListGroup, CListGroupItem, CBadge, CTable, CTableHead, CTableRow, CTableHeaderCell, CTableBody, CTableDataCell, CButton, CModal, CModalHeader, CModalTitle, CModalBody, CModalFooter } from '@coreui/react-pro';
+import { CChartLine } from '@coreui/react-chartjs';
 import { Head, Link } from '@inertiajs/react';
 import { ArrowLeft, User, Mail, Calendar, Hash, ShoppingBasket, Newspaper, MapPin, Tag, Phone, Eye, Settings, Trash2, Info } from 'lucide-react';
 import { useState } from 'react';
 import { router } from '@inertiajs/react';
 import { useTranslation } from 'react-i18next';
 
-export default function CustomerShow({ shop, customer, groups = [], addresses = [], orders = [], wallet_budget }: { shop: any, customer: any, groups?: any[], addresses?: any[], orders?: any[], wallet_budget?: any }) {
+export default function CustomerShow({ shop, customer, groups = [], addresses = [], orders = [], wallet_budget, activity_logs = [], chart_data }: { shop: any, customer: any, groups?: any[], addresses?: any[], orders?: any[], wallet_budget?: any, activity_logs?: any[], chart_data?: any }) {
     const { t } = useTranslation();
     const [showDeleteModal, setShowDeleteModal] = useState(false);
 
@@ -148,6 +149,56 @@ export default function CustomerShow({ shop, customer, groups = [], addresses = 
                     </CCol>
 
                     <CCol lg={8}>
+                        {/* Budget Evolution Chart */}
+                        <CCard className="border-0 shadow-sm mb-4 bg-body-tertiary overflow-hidden">
+                            <CCardBody className="p-4">
+                                <h5 className="fw-bold mb-4 d-flex align-items-center gap-2 text-body">
+                                    <ShoppingBasket size={20} className="text-success" /> {t('standard_budget_evolution', 'Évolution du Budget Standard')} ({t('last_6_months', '6 derniers mois')})
+                                </h5>
+                                <div style={{ height: '250px' }}>
+                                    <CChartLine
+                                        data={{
+                                            labels: chart_data?.labels || [],
+                                            datasets: [
+                                                {
+                                                    label: t('net_movement', 'Mouvement net') + ' (€)',
+                                                    backgroundColor: 'rgba(25, 135, 84, 0.1)',
+                                                    borderColor: 'rgba(25, 135, 84, 1)',
+                                                    pointBackgroundColor: 'rgba(25, 135, 84, 1)',
+                                                    pointBorderColor: '#fff',
+                                                    data: chart_data?.data || [],
+                                                    fill: true,
+                                                    tension: 0.4
+                                                },
+                                            ],
+                                        }}
+                                        options={{
+                                            maintainAspectRatio: false,
+                                            plugins: {
+                                                legend: {
+                                                    display: false,
+                                                },
+                                            },
+                                            scales: {
+                                                x: {
+                                                    grid: {
+                                                        display: false,
+                                                    },
+                                                },
+                                                y: {
+                                                    beginAtZero: true,
+                                                },
+                                            },
+                                        }}
+                                    />
+                                </div>
+                                <div className="mt-3 small text-muted">
+                                    <Info size={14} className="me-1" />
+                                    {t('chart_description', 'Ce graphique montre la somme des transactions (recharges - dépenses) par mois.')}
+                                </div>
+                            </CCardBody>
+                        </CCard>
+
                         <CCard className="border-0 shadow-sm mb-4 bg-body-tertiary">
                             <CCardBody className="p-4">
                                 <h5 className="fw-bold mb-4 d-flex align-items-center gap-2 text-body">
@@ -255,6 +306,64 @@ export default function CustomerShow({ shop, customer, groups = [], addresses = 
                                         </div>
                                     </CCol>
                                 </CRow>
+                            </CCardBody>
+                        </CCard>
+
+                        {/* Administrative Activity Logs */}
+                        <CCard className="border-0 shadow-sm mt-4 bg-body-tertiary">
+                            <CCardBody className="p-4">
+                                <h5 className="fw-bold mb-4 d-flex align-items-center gap-2 text-body">
+                                    <Info size={20} className="text-warning" /> {t('admin_activity_logs', 'Historique des modifications administratives')}
+                                </h5>
+                                {activity_logs.length > 0 ? (
+                                    <div className="timeline small">
+                                        {activity_logs.map((log) => (
+                                            <div key={log.id} className="mb-4 pb-3 border-bottom border-body-secondary position-relative ps-4">
+                                                <div className="position-absolute start-0 top-0 h-100 border-start border-2 border-info border-opacity-25 ms-1"></div>
+                                                <div className="position-absolute start-0 top-0 bg-info rounded-circle" style={{ width: '10px', height: '10px', marginTop: '6px' }}></div>
+                                                
+                                                <div className="d-flex justify-content-between align-items-center mb-1">
+                                                    <span className="fw-bold text-body">{log.user?.name || t('system', 'Système')}</span>
+                                                    <span className="text-muted" style={{ fontSize: '0.75rem' }}>{new Date(log.created_at).toLocaleString()}</span>
+                                                </div>
+                                                <div className="text-secondary mb-2">{log.description}</div>
+                                                
+                                                {log.action === 'update_budget' && log.old_data && log.new_data && (
+                                                    <div className="row g-2 mt-2">
+                                                        <div className="col-md-6">
+                                                            <div className="p-2 bg-danger bg-opacity-10 rounded border border-danger border-opacity-10">
+                                                                <div className="text-danger fw-bold x-small mb-1">{t('before', 'AVANT')}</div>
+                                                                <div className="d-flex justify-content-between small">
+                                                                    <span>{t('standard', 'Standard')}:</span>
+                                                                    <span>{parseFloat(log.old_data.standard_budget).toFixed(2)}€</span>
+                                                                </div>
+                                                                <div className="d-flex justify-content-between small">
+                                                                    <span>{t('special', 'Spécial')}:</span>
+                                                                    <span>{parseFloat(log.old_data.special_budget).toFixed(2)}€</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="col-md-6">
+                                                            <div className="p-2 bg-success bg-opacity-10 rounded border border-success border-opacity-10">
+                                                                <div className="text-success fw-bold x-small mb-1">{t('after', 'APRÈS')}</div>
+                                                                <div className="d-flex justify-content-between small">
+                                                                    <span>{t('standard', 'Standard')}:</span>
+                                                                    <span>{parseFloat(log.new_data.standard_budget).toFixed(2)}€</span>
+                                                                </div>
+                                                                <div className="d-flex justify-content-between small">
+                                                                    <span>{t('special', 'Spécial')}:</span>
+                                                                    <span>{parseFloat(log.new_data.special_budget).toFixed(2)}€</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-4 text-secondary opacity-50">{t('no_history', 'Aucun historique disponible')}</div>
+                                )}
                             </CCardBody>
                         </CCard>
                     </CCol>

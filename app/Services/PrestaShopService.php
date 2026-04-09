@@ -1891,4 +1891,38 @@ XML;
             return false;
         }
     }
+
+    /**
+     * Get aggregated wallet statistics.
+     */
+    public function getWalletStats(string $url, string $apiKey): array
+    {
+        $apiKey = trim($apiKey);
+        $baseUrl = rtrim($url, '/');
+        if (!str_ends_with($baseUrl, '/api')) {
+            $baseUrl .= '/api';
+        }
+
+        try {
+            $endpoint = $baseUrl . '/wallet_stats?io_format=JSON&ws_key=' . $apiKey;
+            $response = Http::withoutVerifying()->timeout(5)->get($endpoint);
+            
+            if ($response->successful()) {
+                $data = $response->json();
+                return $data['wallet_stats'] ?? [
+                    'total_standard' => 0,
+                    'total_special' => 0,
+                    'total_customers' => 0
+                ];
+            }
+        } catch (Exception $e) {
+            \Log::error("PS getWalletStats error: " . $e->getMessage());
+        }
+        
+        return [
+            'total_standard' => 0,
+            'total_special' => 0,
+            'total_customers' => 0
+        ];
+    }
 }

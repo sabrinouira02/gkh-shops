@@ -14,8 +14,9 @@ import {
     CHeaderToggler,
     CInputGroup,
     CInputGroupText,
-    useColorModes,
+    CButton,
 } from '@coreui/react-pro'
+import { useAppearance } from '@/hooks/use-appearance'
 import CIcon from '@coreui/icons-react'
 import {
     cilContrast,
@@ -41,7 +42,7 @@ import { SidebarContext } from './app-sidebar'
 
 export function AppSidebarHeader() {
     const headerRef = useRef<HTMLDivElement>(null)
-    const { colorMode, setColorMode } = useColorModes('coreui-pro-react-admin-template-theme-modern')
+    const { appearance, updateAppearance } = useAppearance()
     const { i18n, t } = useTranslation()
 
     const { sidebarShow, setSidebarShow } = useContext(SidebarContext)
@@ -123,46 +124,25 @@ export function AppSidebarHeader() {
                             </CDropdownItem>
                         </CDropdownMenu>
                     </CDropdown>
-                    <CDropdown variant="nav-item" placement="bottom-end">
-                        <CDropdownToggle caret={false}>
-                            {colorMode === 'dark' ? (
-                                <CIcon icon={cilMoon} size="lg" />
-                            ) : colorMode === 'auto' ? (
-                                <CIcon icon={cilContrast} size="lg" />
-                            ) : (
-                                <CIcon icon={cilSun} size="lg" />
-                            )}
-                        </CDropdownToggle>
-                        <CDropdownMenu>
-                            <CDropdownItem
-                                active={colorMode === 'light'}
-                                className="d-flex align-items-center"
-                                as="button"
-                                type="button"
-                                onClick={() => setColorMode('light')}
+                    <li className="nav-item py-1">
+                        <div className="vr h-100 mx-2 text-body text-opacity-75"></div>
+                    </li>
+                    <li className="nav-item">
+                        <CHeaderNav>
+                            <CButton 
+                                variant="ghost" 
+                                className="nav-link py-2 px-3 border-0 shadow-none d-flex align-items-center"
+                                onClick={() => updateAppearance(appearance === 'dark' ? 'light' : 'dark')}
+                                title={appearance === 'dark' ? t('light') : t('dark')}
                             >
-                                <CIcon className="me-2" icon={cilSun} size="lg" /> {t('light')}
-                            </CDropdownItem>
-                            <CDropdownItem
-                                active={colorMode === 'dark'}
-                                className="d-flex align-items-center"
-                                as="button"
-                                type="button"
-                                onClick={() => setColorMode('dark')}
-                            >
-                                <CIcon className="me-2" icon={cilMoon} size="lg" /> {t('dark')}
-                            </CDropdownItem>
-                            <CDropdownItem
-                                active={colorMode === 'auto'}
-                                className="d-flex align-items-center"
-                                as="button"
-                                type="button"
-                                onClick={() => setColorMode('auto')}
-                            >
-                                <CIcon className="me-2" icon={cilContrast} size="lg" /> Auto
-                            </CDropdownItem>
-                        </CDropdownMenu>
-                    </CDropdown>
+                                {appearance === 'dark' ? (
+                                    <CIcon icon={cilSun} size="lg" className="text-warning animate-spin-slow" />
+                                ) : (
+                                    <CIcon icon={cilMoon} size="lg" className="text-info" />
+                                )}
+                            </CButton>
+                        </CHeaderNav>
+                    </li>
                     <li className="nav-item py-1">
                         <div className="vr h-100 mx-2 text-body text-opacity-75"></div>
                     </li>

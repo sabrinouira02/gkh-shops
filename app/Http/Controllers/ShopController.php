@@ -636,6 +636,45 @@ class ShopController extends Controller
         } catch (\Exception $e) {
         }
 
+        // Fetch Local Activity Logs
+        $activityLogs = \App\Models\ActivityLog::with('user')
+            ->where('shop_id', $shop->id)
+            ->where('target_id', $id)
+            ->orderBy('created_at', 'DESC')
+            ->get();
+
+        // Fetch Wallet Transactions for Chart (Last 6 months)
+        $chartData = [
+            'labels' => [],
+            'data' => []
+        ];
+        try {
+            // We fetch more transactions to be sure we have enough for history
+            $transactions = $this->service->getWalletTransactions($shop->url, $shop->api_key, 1, 100, ['id_customer' => $id]);
+            $items = $transactions['items'];
+            
+            // Current budget as starting point for reverse calculation or use transactions to build forward
+            // Let's build a simpler monthly view of total standard amount spent/added
+            $months = [];
+            for ($i = 5; $i >= 0; $i--) {
+                $monthKey = now()->subMonths($i)->format('Y-m');
+                $months[$monthKey] = [
+                    'label' => now()->subMonths($i)->translatedFormat('M'),
+                    'total' => 0
+                ];
+            }
+
+            foreach ($items as $item) {
+                $date = \Carbon\Carbon::parse($item['date_transaction'])->format('Y-m');
+                if (isset($months[$date])) {
+                    $months[$date]['total'] += (float)$item['standard_amount'];
+                }
+            }
+
+            $chartData['labels'] = array_column($months, 'label');
+            $chartData['data'] = array_column($months, 'total');
+        } catch (\Exception $e) {}
+
         return Inertia::render('Shops/CustomerShow', [
             'shop' => $shop,
             'customer' => $customer,
@@ -643,6 +682,8 @@ class ShopController extends Controller
             'addresses' => $addresses,
             'orders' => $customerOrders,
             'wallet_budget' => $walletBudget,
+            'activity_logs' => $activityLogs,
+            'chart_data' => $chartData
         ]);
     }
 
@@ -701,9 +742,30 @@ class ShopController extends Controller
             if ($success) {
                 // Update Wallet Budget if provided
                 if (isset($validated['standard_budget']) || isset($validated['special_budget'])) {
+                    // Fetch OLD budget for logging
+                    $oldBudget = null;
+                    try {
+                        $oldBudget = $this->service->getCustomerBudget($shop->url, $shop->api_key, $id);
+                    } catch (\Exception $e) {}
+
                     $this->service->updateCustomerBudget($shop->url, $shop->api_key, $id, [
                         'standard_budget' => $validated['standard_budget'] ?? 0,
                         'special_budget' => $validated['special_budget'] ?? 0,
+                    ]);
+
+                    // Log the activity
+                    \App\Models\ActivityLog::create([
+                        'user_id' => auth()->id(),
+                        'shop_id' => $shop->id,
+                        'action' => 'update_budget',
+                        'target_type' => 'customer',
+                        'target_id' => $id,
+                        'old_data' => $oldBudget,
+                        'new_data' => [
+                            'standard_budget' => $validated['standard_budget'],
+                            'special_budget' => $validated['special_budget'],
+                        ],
+                        'description' => "Mise à jour du budget client #{$id} sur {$shop->name}",
                     ]);
                 }
                 
