@@ -531,8 +531,12 @@ class ShopController extends Controller
         $sortOrder = $request->input('sort_order', 'DESC');
         $limit = (int) $request->input('limit', 10);
 
+        $results = ['items' => [], 'total' => 0];
+
         if ($tab === 'addresses') {
             $results = $this->service->getAddresses($shop->url, $shop->api_key, $page, $limit, $filters, $sortField, $sortOrder);
+        } elseif ($tab === 'transactions') {
+            $results = $this->service->getWalletTransactions($shop->url, $shop->api_key, $page, $limit, $filters, $sortField, $sortOrder);
         } else {
             $results = $this->service->getCustomers($shop->url, $shop->api_key, $page, $limit, $filters, $sortField, $sortOrder);
         }
@@ -541,6 +545,7 @@ class ShopController extends Controller
             'shop' => $shop,
             'customers' => $tab === 'list' ? $results['items'] : [],
             'addresses' => $tab === 'addresses' ? $results['items'] : [],
+            'transactions' => $tab === 'transactions' ? $results['items'] : [],
             'total' => $results['total'],
             'activeTab' => $tab,
             'params' => array_merge($request->only(['page', 'sort_field', 'sort_order', 'limit', 'tab']), ['filters' => $filters])
@@ -623,6 +628,13 @@ class ShopController extends Controller
             }
         } catch (\Exception $e) {
         }
+        
+        // 4. Fetch Wallet Budget from walletmodule
+        $walletBudget = null;
+        try {
+            $walletBudget = $this->service->getCustomerBudget($shop->url, $shop->api_key, $id);
+        } catch (\Exception $e) {
+        }
 
         return Inertia::render('Shops/CustomerShow', [
             'shop' => $shop,
@@ -630,6 +642,7 @@ class ShopController extends Controller
             'groups' => $groups,
             'addresses' => $addresses,
             'orders' => $customerOrders,
+            'wallet_budget' => $walletBudget,
         ]);
     }
 
@@ -649,11 +662,19 @@ class ShopController extends Controller
                 'name' => $name
             ];
         }, $groups);
+        
+        // Fetch Wallet Budget
+        $walletBudget = null;
+        try {
+            $walletBudget = $this->service->getCustomerBudget($shop->url, $shop->api_key, $id);
+        } catch (\Exception $e) {
+        }
 
         return Inertia::render('Shops/CustomerEdit', [
             'shop' => $shop,
             'customer' => $customer,
-            'groups' => $mappedGroups
+            'groups' => $mappedGroups,
+            'wallet_budget' => $walletBudget
         ]);
     }
 
@@ -670,16 +691,26 @@ class ShopController extends Controller
             'birthday' => 'nullable|date',
             'id_default_group' => 'nullable|integer',
             'groups' => 'nullable|array',
+            'standard_budget' => 'nullable|numeric',
+            'special_budget' => 'nullable|numeric',
         ]);
 
         try {
             $success = $this->service->updateCustomer($shop->url, $shop->api_key, $id, $validated);
 
             if ($success) {
-                return redirect()->route('shops.customers.show', [$shop->id, $id])->with('success', 'customer_updated');
+                // Update Wallet Budget if provided
+                if (isset($validated['standard_budget']) || isset($validated['special_budget'])) {
+                    $this->service->updateCustomerBudget($shop->url, $shop->api_key, $id, [
+                        'standard_budget' => $validated['standard_budget'] ?? 0,
+                        'special_budget' => $validated['special_budget'] ?? 0,
+                    ]);
+                }
+                
+                return redirect()->route('shops.customers.show', [$shop->id, $id])->with('success', 'Client mis à jour avec succès.');
             }
 
-            return redirect()->back()->with('error', 'Erreur lors de la mise à jour du client dans PrestaShop. Vérifiez les logs pour plus de détails.');
+            return redirect()->back()->with('error', 'Erreur lors de la mise à jour du client dans PrestaShop.');
         } catch (\Throwable $e) {
             return redirect()->back()->with('error', 'Exception lors de la mise à jour: ' . $e->getMessage());
         }

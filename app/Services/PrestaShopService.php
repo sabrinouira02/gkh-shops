@@ -64,6 +64,162 @@ class PrestaShopService
     }
 
     /**
+     * Get standard budgets for all customers from walletmodule.
+     */
+    public function getCustomerBudgets(string $url, string $apiKey): array
+    {
+        $apiKey = trim($apiKey);
+        $baseUrl = rtrim($url, '/');
+        if (!str_ends_with($baseUrl, '/api')) {
+            $baseUrl .= '/api';
+        }
+
+        try {
+            // Uses the new resource 'customer_budgets' exposed by walletmodule
+            $endpoint = $baseUrl . '/customer_budgets?io_format=JSON&display=full&ws_key=' . $apiKey;
+            $response = Http::withoutVerifying()->get($endpoint);
+            
+            if ($response->successful()) {
+                return $response->json()['customer_budgets'] ?? [];
+            }
+            return [];
+        } catch (Exception $e) {
+            return [];
+        }
+    }
+
+    /**
+     * Get standard budget for a specific customer from walletmodule.
+     */
+    public function getCustomerBudget(string $url, string $apiKey, int $customerId): ?array
+    {
+        $apiKey = trim($apiKey);
+        $baseUrl = rtrim($url, '/');
+        if (!str_ends_with($baseUrl, '/api')) {
+            $baseUrl .= '/api';
+        }
+
+        try {
+            $endpoint = $baseUrl . '/customer_budgets?io_format=JSON&display=full&filter[id_customer]=' . $customerId . '&ws_key=' . $apiKey;
+            $response = Http::withoutVerifying()->get($endpoint);
+            
+            if ($response->successful()) {
+                $budgets = $response->json()['customer_budgets'] ?? [];
+                return !empty($budgets) ? $budgets[0] : null;
+            }
+            return null;
+        } catch (Exception $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Update customer budget in walletmodule via WebService.
+     */
+    public function updateCustomerBudget(string $url, string $apiKey, int $customerId, array $data): bool
+    {
+        $apiKey = trim($apiKey);
+        $baseUrl = rtrim($url, '/');
+        if (!str_ends_with($baseUrl, '/api')) {
+            $baseUrl .= '/api';
+        }
+
+        try {
+            // 1. Find the current budget ID for this customer
+            $budget = $this->getCustomerBudget($url, $apiKey, $customerId);
+            
+            if (!$budget) {
+                // If no budget entry exists, we might need to POST (create) it
+                $xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<prestashop xmlns:xlink=\"http://www.w3.org/1999/xlink\">
+    <customer_budget>
+        <id_customer><![CDATA[{$customerId}]]></id_customer>
+        <standard_budget><![CDATA[{$data['standard_budget']}]]></standard_budget>
+        <special_budget><![CDATA[{$data['special_budget']}]]></special_budget>
+    </customer_budget>
+</prestashop>";
+                $response = Http::withoutVerifying()->withBody($xml, 'application/xml')
+                    ->post($baseUrl . '/customer_budgets?ws_key=' . $apiKey);
+            } else {
+                // If it exists, we PUT (update) it
+                $id = $budget['id'];
+                $xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<prestashop xmlns:xlink=\"http://www.w3.org/1999/xlink\">
+    <customer_budget>
+        <id><![CDATA[{$id}]]></id>
+        <id_customer><![CDATA[{$customerId}]]></id_customer>
+        <standard_budget><![CDATA[{$data['standard_budget']}]]></standard_budget>
+        <special_budget><![CDATA[{$data['special_budget']}]]></special_budget>
+    </customer_budget>
+</prestashop>";
+                $response = Http::withoutVerifying()->withBody($xml, 'application/xml')
+                    ->put($baseUrl . '/customer_budgets/' . $id . '?ws_key=' . $apiKey);
+            }
+
+            return $response->successful();
+        } catch (Exception $e) {
+            \Log::error("Failed to update customer budget: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Get wallet transactions from walletmodule.
+     */
+    public function getWalletTransactions(string $url, string $apiKey, int $page = 1, int $limit = 10, array $filters = [], string $sortField = 'id', string $sortOrder = 'DESC'): array
+    {
+        $apiKey = trim($apiKey);
+        $baseUrl = rtrim($url, '/');
+        if (!str_ends_with($baseUrl, '/api')) {
+            $baseUrl .= '/api';
+        }
+
+        try {
+            $offset = ($page - 1) * $limit;
+            $endpoint = $baseUrl . '/wallet_transactions?io_format=JSON&display=full&sort=[' . $sortField . '_' . $sortOrder . ']&limit=' . $offset . ',' . $limit . '&ws_key=' . $apiKey;
+
+            if (!empty($filters)) {
+                foreach ($filters as $key => $value) {
+                    if ($value !== null && $value !== '') {
+                        $endpoint .= '&filter[' . $key . ']=%[' . $value . ']%';
+                    }
+                }
+            }
+
+            $response = Http::withoutVerifying()->get($endpoint);
+            
+            if ($response->successful()) {
+                $data = $response->json();
+                $items = $data['wallet_transactions'] ?? [];
+                
+                // Get total count for pagination (requires a separate call to the resource without limit)
+                $countEndpoint = $baseUrl . '/wallet_transactions?io_format=JSON&display=[id]&ws_key=' . $apiKey;
+                if (!empty($filters)) {
+                    foreach ($filters as $key => $value) {
+                        if ($value !== null && $value !== '') {
+                            $countEndpoint .= '&filter[' . $key . ']=%[' . $value . ']%';
+                        }
+                    }
+                }
+                $countResponse = Http::withoutVerifying()->get($countEndpoint);
+                $total = 0;
+                if ($countResponse->successful()) {
+                    $totalData = $countResponse->json();
+                    $total = isset($totalData['wallet_transactions']) ? count($totalData['wallet_transactions']) : 0;
+                }
+
+                return [
+                    'items' => $items,
+                    'total' => $total
+                ];
+            }
+            return ['items' => [], 'total' => 0];
+        } catch (Exception $e) {
+            return ['items' => [], 'total' => 0];
+        }
+    }
+
+    /**
      * Get statistics from PrestaShop (Counts of products, orders, customers).
      */
     public function getStats(string $url, string $apiKey): array

@@ -1,12 +1,12 @@
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
-import { CCard, CCardBody, CContainer, CRow, CCol, CButton, CForm, CFormInput, CFormLabel, CFormSwitch, CFormSelect, CFormCheck, CBadge } from '@coreui/react-pro';
+import { CCard, CCardBody, CContainer, CRow, CCol, CButton, CForm, CFormInput, CFormLabel, CFormSwitch, CFormSelect, CFormCheck } from '@coreui/react-pro';
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
-import { ArrowLeft, Save, User, Mail, Calendar, Info, Settings, Building, Users } from 'lucide-react';
+import { ArrowLeft, Save, User, Mail, Info, Settings, Building, Users, ShoppingBasket } from 'lucide-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 
-export default function CustomerEdit({ shop, customer, groups }: { shop: any, customer: any, groups: any[] }) {
+export default function CustomerEdit({ shop, customer, groups, wallet_budget }: { shop: any, customer: any, groups: any[], wallet_budget?: any }) {
     const { t } = useTranslation();
     const breadcrumbs: BreadcrumbItem[] = [
         { title: t('shops'), href: '/shops' },
@@ -34,6 +34,8 @@ export default function CustomerEdit({ shop, customer, groups }: { shop: any, cu
         newsletter: customer.newsletter == '1',
         id_default_group: customer.id_default_group || '3',
         groups: initGroups(),
+        standard_budget: wallet_budget?.standard_budget || 0,
+        special_budget: wallet_budget?.special_budget || 0,
     });
 
     // Handle Flash messages
@@ -115,7 +117,7 @@ export default function CustomerEdit({ shop, customer, groups }: { shop: any, cu
                                     <div className="mb-3">
                                         <CFormLabel htmlFor="company">{t('company')}</CFormLabel>
                                         <div className="input-group">
-                                            <span className="input-group-text bg-body-secondary border-0"><Building size={16}/></span>
+                                            <span className="input-group-text bg-body-secondary border-0"><Building size={16} /></span>
                                             <CFormInput
                                                 id="company"
                                                 value={data.company}
@@ -144,7 +146,7 @@ export default function CustomerEdit({ shop, customer, groups }: { shop: any, cu
                                         <CCol md={6}>
                                             <div className="mb-3">
                                                 <CFormLabel htmlFor="id_gender">{t('id_gender')}</CFormLabel>
-                                                <CFormSelect 
+                                                <CFormSelect
                                                     id="id_gender"
                                                     value={data.id_gender}
                                                     onChange={(e) => setData('id_gender', e.target.value)}
@@ -173,7 +175,7 @@ export default function CustomerEdit({ shop, customer, groups }: { shop: any, cu
                                     <h5 className="fw-bold mb-3 mt-4 text-primary d-flex align-items-center gap-2">
                                         <Settings size={18} /> {t('status')} & {t('settings')}
                                     </h5>
-                                    
+
                                     <div className="p-3 bg-body-secondary rounded-3 mb-4">
                                         <div className="mb-3">
                                             <CFormSwitch
@@ -193,13 +195,44 @@ export default function CustomerEdit({ shop, customer, groups }: { shop: any, cu
                                         </div>
                                     </div>
 
+                                    <h5 className="fw-bold mb-3 mt-4 text-success d-flex align-items-center gap-2">
+                                        <ShoppingBasket size={18} /> Portefeuille (Wallet)
+                                    </h5>
+
+                                    <div className="p-4 bg-success bg-opacity-10 border border-success border-opacity-10 rounded-3 mb-4">
+                                        <CRow className="g-3">
+                                            <CCol md={6}>
+                                                <CFormLabel htmlFor="standard_budget">Budget Standard (€)</CFormLabel>
+                                                <CFormInput
+                                                    id="standard_budget"
+                                                    type="number"
+                                                    step="0.01"
+                                                    value={data.standard_budget}
+                                                    onChange={(e) => setData('standard_budget', e.target.value)}
+                                                    className="bg-body border-0 py-2 shadow-sm"
+                                                />
+                                            </CCol>
+                                            <CCol md={6}>
+                                                <CFormLabel htmlFor="special_budget">Budget Spécial (€)</CFormLabel>
+                                                <CFormInput
+                                                    id="special_budget"
+                                                    type="number"
+                                                    step="0.01"
+                                                    value={data.special_budget}
+                                                    onChange={(e) => setData('special_budget', e.target.value)}
+                                                    className="bg-body border-0 py-2 shadow-sm"
+                                                />
+                                            </CCol>
+                                        </CRow>
+                                    </div>
+
                                     <h5 className="fw-bold mb-4 mt-5 d-flex align-items-center gap-2 text-primary">
                                         <Users size={18} /> {t('groups')}
                                     </h5>
 
                                     <div className="mb-4">
                                         <CFormLabel>{t('id_default_group')}</CFormLabel>
-                                        <CFormSelect 
+                                        <CFormSelect
                                             value={data.id_default_group}
                                             onChange={(e) => setData('id_default_group', e.target.value)}
                                             className="mb-4 bg-body-secondary border-0 py-2"
@@ -215,7 +248,7 @@ export default function CustomerEdit({ shop, customer, groups }: { shop: any, cu
                                         <div className="p-3 border-0 rounded-3 bg-body-secondary" style={{ maxHeight: '200px', overflowY: 'auto' }}>
                                             {groups.map((group: any) => (
                                                 <div key={group.id} className="mb-2">
-                                                    <CFormCheck 
+                                                    <CFormCheck
                                                         id={`group-${group.id}`}
                                                         label={group.name}
                                                         checked={data.groups.includes(group.id.toString())}
@@ -265,7 +298,7 @@ export default function CustomerEdit({ shop, customer, groups }: { shop: any, cu
                                     <span>{t('date_add')}:</span>
                                     <strong className="text-body">{new Date(customer.date_add).toLocaleDateString()}</strong>
                                 </div>
-                                
+
                                 <div className="alert alert-info border-0 shadow-sm small py-2 px-3 bg-opacity-10 bg-info text-info">
                                     <div className="d-flex gap-2">
                                         <Info size={16} className="mt-1" />

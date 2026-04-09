@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { router } from '@inertiajs/react';
 import { useTranslation } from 'react-i18next';
 
-export default function CustomerShow({ shop, customer, groups = [], addresses = [], orders = [] }: { shop: any, customer: any, groups?: any[], addresses?: any[], orders?: any[] }) {
+export default function CustomerShow({ shop, customer, groups = [], addresses = [], orders = [], wallet_budget }: { shop: any, customer: any, groups?: any[], addresses?: any[], orders?: any[], wallet_budget?: any }) {
     const { t } = useTranslation();
     const [showDeleteModal, setShowDeleteModal] = useState(false);
 
@@ -108,6 +108,28 @@ export default function CustomerShow({ shop, customer, groups = [], addresses = 
                                 </div>
                                 
                                 <hr className="my-4 border-body" />
+                                
+                                {wallet_budget && (
+                                    <div className="text-start mb-4">
+                                        <h6 className="fw-bold mb-3 d-flex align-items-center gap-2 text-body">
+                                            <ShoppingBasket size={18} className="text-primary" /> Portefeuille (Wallet)
+                                        </h6>
+                                        <div className="p-3 bg-white bg-opacity-50 rounded border border-primary border-opacity-10 shadow-sm">
+                                            <div className="d-flex justify-content-between mb-2 align-items-center">
+                                                <span className="text-secondary small">Budget Standard:</span>
+                                                <span className="fw-bold text-success fs-5">
+                                                    {parseFloat(wallet_budget.standard_budget).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                                                </span>
+                                            </div>
+                                            <div className="d-flex justify-content-between pt-2 border-top align-items-center">
+                                                <span className="text-secondary small">Budget Spécial:</span>
+                                                <span className="fw-bold text-info fs-6">
+                                                    {parseFloat(wallet_budget.special_budget).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                                 
                                 <div className="text-start">
                                     <h6 className="fw-bold mb-3 d-flex align-items-center gap-2 text-body">

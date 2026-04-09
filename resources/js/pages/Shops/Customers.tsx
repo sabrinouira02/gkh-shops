@@ -1,14 +1,14 @@
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem, type Customer, type Shop } from '@/types';
-import { CCard, CCardBody, CContainer, CRow, CCol, CTable, CTableHead, CTableRow, CTableHeaderCell, CTableBody, CTableDataCell, CBadge, CButton, CFormInput, CModal, CModalHeader, CModalTitle, CModalBody, CModalFooter, CNav, CNavItem, CNavLink } from '@coreui/react-pro';
+import { CCard, CCardBody, CContainer, CTable, CTableHead, CTableRow, CTableHeaderCell, CTableBody, CTableDataCell, CBadge, CButton, CFormInput, CModal, CModalHeader, CModalTitle, CModalBody, CModalFooter } from '@coreui/react-pro';
 import { Head, Link, router } from '@inertiajs/react';
-import { Eye, ChevronUp, ChevronDown, User, Mail, Calendar, Search, Download, FileSpreadsheet, Settings, Trash2, Info, MapPin, Hash, Phone, Building } from 'lucide-react';
-import React, { useState, useEffect, useRef } from 'react';
+import { Eye, ChevronUp, ChevronDown, User, Download, FileSpreadsheet, Settings, Trash2, MapPin, Hash, ShoppingBasket } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
 import Pagination from '@/components/Pagination';
 import { useTranslation } from 'react-i18next';
 import { exportToCSV, exportToExcel } from '@/utils/exportUtils';
 
-export default function Customers({ shop, customers, addresses, total, params, activeTab }: { shop: Shop, customers: Customer[], addresses: any[], total: number, params: any, activeTab: string }) {
+export default function Customers({ shop, customers, addresses, transactions = [], total, params, activeTab }: { shop: Shop, customers: Customer[], addresses: any[], transactions?: any[], total: number, params: any, activeTab: string }) {
     const { t } = useTranslation();
     const [deletingCustomerId, setDeletingCustomerId] = useState<number | string | null>(null);
     const [deletingAddressId, setDeletingAddressId] = useState<number | string | null>(null);
@@ -30,7 +30,7 @@ export default function Customers({ shop, customers, addresses, total, params, a
     const breadcrumbs: BreadcrumbItem[] = [
         { title: t('shops'), href: '/shops' },
         { title: shop.name, href: `/shops/${shop.id}` },
-        { title: activeTab === 'addresses' ? t('addresses') : t('customers'), href: `/shops/${shop.id}/customers` },
+        { title: activeTab === 'addresses' ? t('addresses') : (activeTab === 'transactions' ? 'Transactions Wallet' : t('customers')), href: `/shops/${shop.id}/customers` },
     ];
 
     const [filters, setFilters] = useState(params.filters || {});
@@ -44,8 +44,7 @@ export default function Customers({ shop, customers, addresses, total, params, a
         }
 
         const timer = setTimeout(() => {
-            const currentTab = activeTab === 'addresses' ? 'addresses' : 'list';
-            router.get(`/shops/${shop.id}/customers`, { ...params, filters, page: 1, tab: currentTab }, {
+            router.get(`/shops/${shop.id}/customers`, { ...params, filters, page: 1, tab: activeTab }, {
                 preserveState: true,
                 replace: true
             });
@@ -73,7 +72,7 @@ export default function Customers({ shop, customers, addresses, total, params, a
 
     const getSortIcon = (field: string) => {
         if (params.sort_field !== field) return null;
-        return params.sort_order === 'ASC' ? <ChevronUp size={14} className="ms-1 animate-bounce" /> : <ChevronDown size={14} className="ms-1 animate-bounce" />;
+        return params.sort_order === 'ASC' ? <ChevronUp size={14} className="ms-1" /> : <ChevronDown size={14} className="ms-1" />;
     };
 
     const handleExport = (type: 'csv' | 'excel') => {
@@ -82,354 +81,247 @@ export default function Customers({ shop, customers, addresses, total, params, a
 
         if (activeTab === 'addresses') {
             rows = addresses.map(a => ({
-                ID: a.id,
-                Alias: a.alias,
-                Nom: a.lastname,
-                Prénom: a.firstname,
-                Adresse: `${a.address1} ${a.address2 || ''}`,
-                CP: a.postcode,
-                Ville: a.city,
-                Téléphone: a.phone_mobile || a.phone,
-                'ID Client': a.id_customer
+                ID: a.id, Alias: a.alias, Nom: a.lastname, Prénom: a.firstname, CP: a.postcode, Ville: a.city
             }));
             filename = `adresses_${shop.name}`;
+        } else if (activeTab === 'transactions') {
+            rows = transactions.map(t => ({
+                ID: t.id, Transaction: t.id_transaction, Client: t.id_customer, Commande: t.id_order, Total: t.total_amount, Date: t.date_transaction
+            }));
+            filename = `transactions_${shop.name}`;
         } else {
             rows = customers.map(c => ({
-                ID: c.id,
-                Prénom: c.firstname,
-                Nom: c.lastname,
-                Email: c.email,
-                'Inscrit le': new Date(c.date_add).toLocaleDateString('fr-FR'),
-                Actif: c.active === '1' ? 'Oui' : 'Non',
+                ID: c.id, Prénom: c.firstname, Nom: c.lastname, Email: c.email, Actif: c.active === '1' ? 'Oui' : 'Non'
             }));
             filename = `clients_${shop.name}`;
         }
-        
+
         type === 'csv' ? exportToCSV(rows, filename) : exportToExcel(rows, filename);
+    };
+
+    const renderTabContent = () => {
+        const filterInput = (field: string, placeholder: string = "Rechercher...") => (
+            <div className="position-relative">
+                <CFormInput
+                    size="sm"
+                    placeholder={placeholder}
+                    value={filters[field] || ''}
+                    onChange={(e) => handleFilterChange(field, e.target.value)}
+                    className="bg-body border-0 shadow-none small py-0"
+                    style={{ fontSize: '0.75rem', height: '24px' }}
+                />
+            </div>
+        );
+
+        switch (activeTab) {
+            case 'addresses':
+                return (
+                    <CTable align="middle" responsive hover className="mb-0 border-top-0 transition-all">
+                        <CTableHead className="bg-body-secondary text-secondary small text-uppercase fw-bold border-bottom">
+                            <CTableRow>
+                                <CTableHeaderCell onClick={() => handleSort('id')} style={{ cursor: 'pointer' }} className="ps-4 py-3">ID {getSortIcon('id')}</CTableHeaderCell>
+                                <CTableHeaderCell>Alias / Société</CTableHeaderCell>
+                                <CTableHeaderCell>Destinataire</CTableHeaderCell>
+                                <CTableHeaderCell>Localisation</CTableHeaderCell>
+                                <CTableHeaderCell>ID Client</CTableHeaderCell>
+                                <CTableHeaderCell className="text-end pe-4">Actions</CTableHeaderCell>
+                            </CTableRow>
+                            <CTableRow className="bg-body-tertiary border-bottom">
+                                <CTableHeaderCell className="ps-4 py-1">{filterInput('id', 'ID')}</CTableHeaderCell>
+                                <CTableHeaderCell className="py-1">{filterInput('alias', t('alias'))}</CTableHeaderCell>
+                                <CTableHeaderCell className="py-1">{filterInput('lastname', t('name'))}</CTableHeaderCell>
+                                <CTableHeaderCell className="py-1">{filterInput('city', t('city'))}</CTableHeaderCell>
+                                <CTableHeaderCell className="py-1">{filterInput('id_customer', 'Client ID')}</CTableHeaderCell>
+                                <CTableHeaderCell className="text-end pe-4 py-1">
+                                    <CButton variant="ghost" size="sm" color="secondary" onClick={() => setFilters({})} className="p-0 small opacity-50" style={{ fontSize: '0.7rem' }}>{t('clear_filters')}</CButton>
+                                </CTableHeaderCell>
+                            </CTableRow>
+                        </CTableHead>
+                        <CTableBody>
+                            {addresses.length === 0 ? (
+                                <CTableRow><CTableDataCell colSpan={6} className="text-center py-5 text-secondary opacity-50">Aucune adresse trouvée</CTableDataCell></CTableRow>
+                            ) : (
+                                addresses.map((addr) => (
+                                    <CTableRow key={addr.id}>
+                                        <CTableDataCell className="ps-4 small text-secondary">#{addr.id}</CTableDataCell>
+                                        <CTableDataCell>
+                                            <div className="fw-bold text-primary small">{addr.alias}</div>
+                                            {addr.company && <div className="text-muted small">{addr.company}</div>}
+                                        </CTableDataCell>
+                                        <CTableDataCell className="small fw-bold">{addr.firstname} {addr.lastname}</CTableDataCell>
+                                        <CTableDataCell className="small">
+                                            <div>{addr.address1}</div>
+                                            <div className="text-muted">{addr.postcode} {addr.city}</div>
+                                        </CTableDataCell>
+                                        <CTableDataCell className="small">
+                                            <Link href={`/shops/${shop.id}/customers/${addr.id_customer}`} className="text-decoration-none">ID: {addr.id_customer}</Link>
+                                        </CTableDataCell>
+                                        <CTableDataCell className="text-end pe-4">
+                                            <div className="d-flex justify-content-end gap-1">
+                                                <CButton color="danger" variant="ghost" size="sm" onClick={() => setDeletingAddressId(addr.id)}><Trash2 size={16} /></CButton>
+                                                <Link href={`/shops/${shop.id}/addresses/${addr.id}/edit`}><CButton color="warning" variant="ghost" size="sm"><Settings size={16} /></CButton></Link>
+                                            </div>
+                                        </CTableDataCell>
+                                    </CTableRow>
+                                ))
+                            )}
+                        </CTableBody>
+                    </CTable>
+                );
+            case 'transactions':
+                return (
+                    <CTable align="middle" responsive hover className="mb-0 border-top-0 transition-all">
+                        <CTableHead className="bg-body-secondary text-secondary small text-uppercase fw-bold border-bottom">
+                            <CTableRow>
+                                <CTableHeaderCell onClick={() => handleSort('id')} style={{ cursor: 'pointer' }} className="ps-4 py-3">ID {getSortIcon('id')}</CTableHeaderCell>
+                                <CTableHeaderCell>Transaction</CTableHeaderCell>
+                                <CTableHeaderCell>ID Client / Commande</CTableHeaderCell>
+                                <CTableHeaderCell>Budget Std</CTableHeaderCell>
+                                <CTableHeaderCell>Budget Spé</CTableHeaderCell>
+                                <CTableHeaderCell>Total</CTableHeaderCell>
+                                <CTableHeaderCell>Date</CTableHeaderCell>
+                            </CTableRow>
+                            <CTableRow className="bg-body-tertiary border-bottom">
+                                <CTableHeaderCell className="ps-4 py-1">{filterInput('id', 'ID')}</CTableHeaderCell>
+                                <CTableHeaderCell className="py-1">{filterInput('id_transaction', 'Ref...')}</CTableHeaderCell>
+                                <CTableHeaderCell className="py-1">{filterInput('id_customer', 'ID...')}</CTableHeaderCell>
+                                <CTableHeaderCell className="py-1"></CTableHeaderCell>
+                                <CTableHeaderCell className="py-1"></CTableHeaderCell>
+                                <CTableHeaderCell className="py-1"></CTableHeaderCell>
+                                <CTableHeaderCell className="pe-4 py-1">
+                                    <CButton variant="ghost" size="sm" color="secondary" onClick={() => setFilters({})} className="p-0 small opacity-50" style={{ fontSize: '0.7rem' }}>{t('clear_filters')}</CButton>
+                                </CTableHeaderCell>
+                            </CTableRow>
+                        </CTableHead>
+                        <CTableBody>
+                            {transactions.length === 0 ? (
+                                <CTableRow><CTableDataCell colSpan={7} className="text-center py-5 text-secondary opacity-50">Aucune transaction trouvée</CTableDataCell></CTableRow>
+                            ) : (
+                                transactions.map((t) => (
+                                    <CTableRow key={t.id}>
+                                        <CTableDataCell className="ps-4 small text-secondary">#{t.id}</CTableDataCell>
+                                        <CTableDataCell className="small fw-bold text-primary">{t.id_transaction}</CTableDataCell>
+                                        <CTableDataCell className="small">
+                                            <Link href={`/shops/${shop.id}/customers/${t.id_customer}`} className="d-block text-decoration-none mb-1 d-flex align-items-center gap-1"><User size={12} /> Client: #{t.id_customer}</Link>
+                                            <Link href={`/shops/${shop.id}/orders/${t.id_order}`} className="d-block text-decoration-none d-flex align-items-center gap-1"><Hash size={12} /> Commande: #{t.id_order}</Link>
+                                        </CTableDataCell>
+                                        <CTableDataCell className={`small fw-bold ${parseFloat(t.standard_amount) < 0 ? 'text-danger' : 'text-success'}`}>{parseFloat(t.standard_amount).toFixed(2)}€</CTableDataCell>
+                                        <CTableDataCell className={`small fw-bold ${parseFloat(t.special_amount) < 0 ? 'text-danger' : 'text-info'}`}>{parseFloat(t.special_amount).toFixed(2)}€</CTableDataCell>
+                                        <CTableDataCell className={`fw-bold ${parseFloat(t.total_amount) < 0 ? 'text-danger' : 'text-body'}`}>{parseFloat(t.total_amount).toFixed(2)}€</CTableDataCell>
+                                        <CTableDataCell className="small text-secondary">{new Date(t.date_transaction).toLocaleString()}</CTableDataCell>
+                                    </CTableRow>
+                                ))
+                            )}
+                        </CTableBody>
+                    </CTable>
+                );
+            default: // 'list' or customers
+                return (
+                    <CTable align="middle" responsive hover className="mb-0 border-top-0 transition-all">
+                        <CTableHead className="bg-body-secondary text-secondary small text-uppercase fw-bold border-bottom">
+                            <CTableRow>
+                                <CTableHeaderCell onClick={() => handleSort('id')} style={{ cursor: 'pointer' }} className="ps-4 py-3">ID {getSortIcon('id')}</CTableHeaderCell>
+                                <CTableHeaderCell onClick={() => handleSort('lastname')} style={{ cursor: 'pointer' }}>Nom {getSortIcon('lastname')}</CTableHeaderCell>
+                                <CTableHeaderCell onClick={() => handleSort('email')} style={{ cursor: 'pointer' }}>Email {getSortIcon('email')}</CTableHeaderCell>
+                                <CTableHeaderCell>Statut</CTableHeaderCell>
+                                <CTableHeaderCell className="text-end pe-4">Actions</CTableHeaderCell>
+                            </CTableRow>
+                            <CTableRow className="bg-body-tertiary border-bottom">
+                                <CTableHeaderCell className="ps-4 py-1">{filterInput('id', 'ID')}</CTableHeaderCell>
+                                <CTableHeaderCell className="py-1">{filterInput('lastname', t('search_customer'))}</CTableHeaderCell>
+                                <CTableHeaderCell className="py-1">{filterInput('email', t('email'))}</CTableHeaderCell>
+                                <CTableHeaderCell className="py-1"></CTableHeaderCell>
+                                <CTableHeaderCell className="text-end pe-4 py-1">
+                                    <CButton variant="ghost" size="sm" color="secondary" onClick={() => setFilters({})} className="p-0 small opacity-50" style={{ fontSize: '0.7rem' }}>{t('clear_filters')}</CButton>
+                                </CTableHeaderCell>
+                            </CTableRow>
+                        </CTableHead>
+                        <CTableBody>
+                            {customers.length === 0 ? (
+                                <CTableRow><CTableDataCell colSpan={5} className="text-center py-5 text-secondary opacity-50">Aucun client trouvé</CTableDataCell></CTableRow>
+                            ) : (
+                                customers.map((c) => (
+                                    <CTableRow key={c.id}>
+                                        <CTableDataCell className="ps-4 small text-secondary">#{c.id}</CTableDataCell>
+                                        <CTableDataCell className="fw-bold">{c.firstname} {c.lastname}</CTableDataCell>
+                                        <CTableDataCell className="small">{c.email}</CTableDataCell>
+                                        <CTableDataCell>
+                                            <CBadge color={c.active === '1' ? 'success' : 'secondary'} className="rounded-pill px-3">
+                                                {c.active === '1' ? t('active') : t('inactive')}
+                                            </CBadge>
+                                        </CTableDataCell>
+                                        <CTableDataCell className="text-end pe-4">
+                                            <div className="d-flex justify-content-end gap-1">
+                                                <CButton color="danger" variant="ghost" size="sm" onClick={() => setDeletingCustomerId(c.id)}><Trash2 size={16} /></CButton>
+                                                <Link href={`/shops/${shop.id}/customers/${c.id}/edit`}><CButton color="warning" variant="ghost" size="sm"><Settings size={16} /></CButton></Link>
+                                                <Link href={`/shops/${shop.id}/customers/${c.id}`}><CButton color="primary" variant="ghost" size="sm"><Eye size={18} /></CButton></Link>
+                                            </div>
+                                        </CTableDataCell>
+                                    </CTableRow>
+                                ))
+                            )}
+                        </CTableBody>
+                    </CTable>
+                );
+        }
     };
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title={`${activeTab === 'addresses' ? t('addresses') : t('customers')} - ${shop.name}`} />
+            <Head title={`${activeTab === 'addresses' ? t('addresses') : (activeTab === 'transactions' ? 'Transactions' : t('customers'))} - ${shop.name}`} />
 
             <CContainer fluid className="py-4">
                 <div className="d-flex justify-content-between align-items-center mb-4 text-body">
-                    <div className="animate__animated animate__fadeInLeft">
+                    <div>
                         <h2 className="fw-bold mb-0 text-body d-flex align-items-center gap-2">
-                            {activeTab === 'addresses' ? (
-                                <><MapPin className="text-warning" size={28} /> {t('address_list')}</>
-                            ) : (
-                                <><User className="text-primary" size={28} /> {t('customers')}</>
-                            )}
+                            {activeTab === 'addresses' && <><MapPin className="text-warning" size={28} /> {t('address_list')}</>}
+                            {activeTab === 'transactions' && <><ShoppingBasket className="text-success" size={28} /> Transactions Wallet</>}
+                            {activeTab !== 'addresses' && activeTab !== 'transactions' && <><User className="text-primary" size={28} /> {t('customers')}</>}
                         </h2>
-                        <p className="text-secondary mb-0 opacity-75">{total} {activeTab === 'addresses' ? t('all_addresses') : t('total_customers')} sur {shop.name}</p>
+                        <p className="text-secondary mb-0 opacity-75">{total} éléments sur {shop.name}</p>
                     </div>
-                    <div className="d-flex gap-2 animate__animated animate__fadeInRight">
-                        <CButton color="success" variant="outline" size="sm" className="d-flex align-items-center gap-1 shadow-sm hover-lift" onClick={() => handleExport('excel')}>
-                            <FileSpreadsheet size={15} /> Excel
-                        </CButton>
-                        <CButton color="secondary" variant="outline" size="sm" className="d-flex align-items-center gap-1 shadow-sm hover-lift" onClick={() => handleExport('csv')}>
-                            <Download size={15} /> CSV
-                        </CButton>
+                    <div className="d-flex gap-2">
+                        <CButton color="success" variant="outline" size="sm" onClick={() => handleExport('excel')}><FileSpreadsheet size={15} /> Excel</CButton>
+                        <CButton color="secondary" variant="outline" size="sm" onClick={() => handleExport('csv')}><Download size={15} /> CSV</CButton>
                     </div>
                 </div>
 
-                <div className="bg-body-secondary p-1 rounded-3 d-inline-flex mb-4 shadow-sm border border-secondary border-opacity-10">
-                    <Link 
-                        href={`/shops/${shop.id}/customers?tab=list`} 
-                        className={`btn btn-sm px-4 py-2 d-flex align-items-center gap-2 transition-all rounded-2 ${activeTab !== 'addresses' ? 'btn-primary shadow text-white' : 'btn-ghost text-secondary border-0'}`}
-                    >
+                <div className="bg-body-secondary p-1 rounded-3 d-inline-flex mb-4 shadow-sm">
+                    <Link href={`/shops/${shop.id}/customers?tab=list`} className={`btn btn-sm px-4 py-2 rounded-2 ${activeTab !== 'addresses' && activeTab !== 'transactions' ? 'btn-primary shadow text-white' : 'btn-ghost text-secondary'}`}>
                         <User size={16} /> {t('customers')}
                     </Link>
-                    <Link 
-                        href={`/shops/${shop.id}/customers?tab=addresses`} 
-                        className={`btn btn-sm px-4 py-2 d-flex align-items-center gap-2 transition-all rounded-2 ${activeTab === 'addresses' ? 'btn-primary shadow text-white' : 'btn-ghost text-secondary border-0'}`}
-                    >
+                    <Link href={`/shops/${shop.id}/customers?tab=addresses`} className={`btn btn-sm px-4 py-2 rounded-2 ${activeTab === 'addresses' ? 'btn-primary shadow text-white' : 'btn-ghost text-secondary'}`}>
                         <MapPin size={16} /> {t('addresses')}
+                    </Link>
+                    <Link href={`/shops/${shop.id}/customers?tab=transactions`} className={`btn btn-sm px-4 py-2 rounded-2 ${activeTab === 'transactions' ? 'btn-primary shadow text-white' : 'btn-ghost text-secondary'}`}>
+                        <ShoppingBasket size={16} /> Transactions
                     </Link>
                 </div>
 
-                <CCard className="border-0 shadow-lg overflow-hidden mb-4 bg-body-tertiary premium-glass">
+                <CCard className="border-0 shadow-lg overflow-hidden mb-4 bg-body-tertiary">
                     <CCardBody className="p-0">
-                        {activeTab !== 'addresses' ? (
-                            <CTable align="middle" responsive hover className="mb-0 border-top-0 transition-all">
-                                <CTableHead className="bg-body-secondary text-secondary small text-uppercase fw-bold border-bottom">
-                                    <CTableRow>
-                                        <CTableHeaderCell 
-                                            onClick={() => handleSort('id')} 
-                                            style={{ cursor: 'pointer' }}
-                                            className="ps-4 py-3 border-0"
-                                        >
-                                            <div className="d-flex align-items-center">ID {getSortIcon('id')}</div>
-                                        </CTableHeaderCell>
-                                        <CTableHeaderCell 
-                                            onClick={() => handleSort('lastname')} 
-                                            style={{ cursor: 'pointer' }}
-                                            className="border-0"
-                                        >
-                                            <div className="d-flex align-items-center">{t('name')} {getSortIcon('lastname')}</div>
-                                        </CTableHeaderCell>
-                                        <CTableHeaderCell 
-                                            onClick={() => handleSort('email')} 
-                                            style={{ cursor: 'pointer' }}
-                                            className="border-0"
-                                        >
-                                            <div className="d-flex align-items-center">{t('email')} {getSortIcon('email')}</div>
-                                        </CTableHeaderCell>
-                                        <CTableHeaderCell 
-                                            onClick={() => handleSort('date_add')} 
-                                            style={{ cursor: 'pointer' }}
-                                            className="border-0"
-                                        >
-                                            <div className="d-flex align-items-center">{t('registered')} {getSortIcon('date_add')}</div>
-                                        </CTableHeaderCell>
-                                        <CTableHeaderCell className="border-0">{t('status')}</CTableHeaderCell>
-                                        <CTableHeaderCell className="text-end pe-4 border-0">{t('actions')}</CTableHeaderCell>
-                                    </CTableRow>
-                                    <CTableRow className="bg-body-tertiary border-bottom small-filters">
-                                        <CTableHeaderCell className="ps-3 py-1">
-                                            <div className="position-relative">
-                                                <Search size={10} className="position-absolute top-50 start-0 translate-middle-y ms-2 text-secondary opacity-50" />
-                                                <CFormInput 
-                                                    size="sm" 
-                                                    placeholder="ID"
-                                                    value={filters.id || ''}
-                                                    onChange={(e) => handleFilterChange('id', e.target.value)}
-                                                    className="ps-4 bg-body border-0 shadow-none small"
-                                                    style={{ fontSize: '0.75rem' }}
-                                                />
-                                            </div>
-                                        </CTableHeaderCell>
-                                        <CTableHeaderCell className="py-1">
-                                            <div className="position-relative">
-                                                <CFormInput 
-                                                    size="sm" 
-                                                    placeholder={t('search_customer')}
-                                                    value={filters.lastname || ''}
-                                                    onChange={(e) => handleFilterChange('lastname', e.target.value)}
-                                                    className="bg-body border-0 shadow-none small"
-                                                    style={{ fontSize: '0.75rem' }}
-                                                />
-                                            </div>
-                                        </CTableHeaderCell>
-                                        <CTableHeaderCell className="py-1">
-                                            <CFormInput 
-                                                size="sm" 
-                                                placeholder={t('email')}
-                                                value={filters.email || ''}
-                                                onChange={(e) => handleFilterChange('email', e.target.value)}
-                                                className="bg-body border-0 shadow-none small"
-                                                style={{ fontSize: '0.75rem' }}
-                                            />
-                                        </CTableHeaderCell>
-                                        <CTableHeaderCell className="py-1">
-                                            <CFormInput 
-                                                size="sm" 
-                                                placeholder="Date..."
-                                                value={filters.date_add || ''}
-                                                onChange={(e) => handleFilterChange('date_add', e.target.value)}
-                                                className="bg-body border-0 shadow-none small"
-                                                style={{ fontSize: '0.75rem' }}
-                                            />
-                                        </CTableHeaderCell>
-                                        <CTableHeaderCell className="py-1"></CTableHeaderCell>
-                                        <CTableHeaderCell className="text-end pe-3 py-1">
-                                            <CButton 
-                                                variant="ghost" 
-                                                size="sm" 
-                                                color="secondary"
-                                                onClick={() => setFilters({})}
-                                                className="p-0 border-0 text-decoration-none opacity-50 hover-opacity-100"
-                                                style={{ fontSize: '0.7rem' }}
-                                            >
-                                                {t('clear_filters')}
-                                            </CButton>
-                                        </CTableHeaderCell>
-                                    </CTableRow>
-                                </CTableHead>
-                                <CTableBody>
-                                    {customers.length === 0 ? (
-                                        <CTableRow>
-                                            <CTableDataCell colSpan={6} className="text-center py-5">
-                                                <div className="text-secondary opacity-50 d-flex flex-column align-items-center gap-2">
-                                                    <Search size={40} />
-                                                    {t('no_items')}
-                                                </div>
-                                            </CTableDataCell>
-                                        </CTableRow>
-                                    ) : (
-                                        customers.map((customer) => (
-                                            <CTableRow key={customer.id} className="hover-lift transition-all">
-                                                <CTableDataCell className="ps-4 text-secondary small">#{customer.id}</CTableDataCell>
-                                                <CTableDataCell className="fw-bold text-body">
-                                                    <div className="d-flex align-items-center gap-2">
-                                                        <div className="bg-primary bg-opacity-10 text-primary rounded-circle p-1 d-flex align-items-center justify-content-center fw-bold" style={{ width: '32px', height: '32px', fontSize: '0.8rem' }}>
-                                                            {customer.firstname.charAt(0)}{customer.lastname.charAt(0)}
-                                                        </div>
-                                                        <div className="d-flex flex-column">
-                                                            <span>{customer.firstname} {customer.lastname}</span>
-                                                            <span className="text-muted small fw-normal">{t('registered')} {new Date(customer.date_add).toLocaleDateString()}</span>
-                                                        </div>
-                                                    </div>
-                                                </CTableDataCell>
-                                                <CTableDataCell className="small text-body">
-                                                    <Mail size={12} className="me-1 text-primary opacity-50" /> {customer.email}
-                                                </CTableDataCell>
-                                                <CTableDataCell className="small text-secondary">
-                                                    <Calendar size={12} className="me-1 text-secondary opacity-50" /> {new Date(customer.date_add).toLocaleDateString()}
-                                                </CTableDataCell>
-                                                <CTableDataCell>
-                                                    <CBadge color={customer.active === '1' ? 'success' : 'secondary'} className={`rounded-pill px-3 py-1 bg-opacity-10 ${customer.active === '1' ? 'text-success' : 'text-secondary'} border-0`}>
-                                                        {customer.active === '1' ? t('active') : t('inactive')}
-                                                    </CBadge>
-                                                </CTableDataCell>
-                                                <CTableDataCell className="text-end pe-4">
-                                                    <div className="d-flex justify-content-end gap-1">
-                                                        <CButton color="danger" variant="ghost" size="sm" className="rounded-pill hover-bg-danger-soft transition-all" title={t('delete')} onClick={() => setDeletingCustomerId(customer.id)}>
-                                                            <Trash2 size={16} />
-                                                        </CButton>
-                                                        <Link href={`/shops/${shop.id}/customers/${customer.id}/edit`}>
-                                                            <CButton color="warning" variant="ghost" size="sm" className="rounded-pill hover-bg-warning-soft transition-all" title={t('edit')}>
-                                                                <Settings size={16} />
-                                                            </CButton>
-                                                        </Link>
-                                                        <Link href={`/shops/${shop.id}/customers/${customer.id}`}>
-                                                            <CButton color="primary" variant="ghost" size="sm" className="rounded-pill hover-bg-primary-soft transition-all" title={t('details')}>
-                                                                <Eye size={18} />
-                                                            </CButton>
-                                                        </Link>
-                                                    </div>
-                                                </CTableDataCell>
-                                            </CTableRow>
-                                        ))
-                                    )}
-                                </CTableBody>
-                            </CTable>
-                        ) : (
-                            <CTable align="middle" responsive hover className="mb-0 border-top-0 transition-all">
-                                <CTableHead className="bg-body-secondary text-secondary small text-uppercase">
-                                    <CTableRow>
-                                        <CTableHeaderCell 
-                                            onClick={() => handleSort('id')} 
-                                            style={{ cursor: 'pointer' }}
-                                            className="ps-4 py-3 border-0"
-                                        >
-                                            <div className="d-flex align-items-center">ID {getSortIcon('id')}</div>
-                                        </CTableHeaderCell>
-                                        <CTableHeaderCell className="border-0">{t('alias_company')}</CTableHeaderCell>
-                                        <CTableHeaderCell className="border-0">{t('recipient')}</CTableHeaderCell>
-                                        <CTableHeaderCell className="border-0">{t('location')}</CTableHeaderCell>
-                                        <CTableHeaderCell className="border-0">{t('associated_customer')}</CTableHeaderCell>
-                                        <CTableHeaderCell className="text-end pe-4 border-0">{t('actions')}</CTableHeaderCell>
-                                    </CTableRow>
-                                    <CTableRow className="bg-body-tertiary border-bottom small-filters">
-                                        <CTableHeaderCell className="ps-3 py-1">
-                                            <CFormInput size="sm" placeholder="ID" value={filters.id || ''} onChange={(e) => handleFilterChange('id', e.target.value)} className="bg-body border-0 shadow-none small" style={{ fontSize: '0.75rem' }} />
-                                        </CTableHeaderCell>
-                                        <CTableHeaderCell className="py-1">
-                                            <CFormInput size="sm" placeholder={t('alias')} value={filters.alias || ''} onChange={(e) => handleFilterChange('alias', e.target.value)} className="bg-body border-0 shadow-none small" style={{ fontSize: '0.75rem' }} />
-                                        </CTableHeaderCell>
-                                        <CTableHeaderCell className="py-1">
-                                            <CFormInput size="sm" placeholder={t('name')} value={filters.lastname || ''} onChange={(e) => handleFilterChange('lastname', e.target.value)} className="bg-body border-0 shadow-none small" style={{ fontSize: '0.75rem' }} />
-                                        </CTableHeaderCell>
-                                        <CTableHeaderCell className="py-1">
-                                            <CFormInput size="sm" placeholder={t('city')} value={filters.city || ''} onChange={(e) => handleFilterChange('city', e.target.value)} className="bg-body border-0 shadow-none small" style={{ fontSize: '0.75rem' }} />
-                                        </CTableHeaderCell>
-                                        <CTableHeaderCell className="py-1">
-                                            <CFormInput size="sm" placeholder={t('id_customer')} value={filters.id_customer || ''} onChange={(e) => handleFilterChange('id_customer', e.target.value)} className="bg-body border-0 shadow-none small" style={{ fontSize: '0.75rem' }} />
-                                        </CTableHeaderCell>
-                                        <CTableHeaderCell className="text-end pe-3 py-1">
-                                            <CButton variant="ghost" size="sm" color="secondary" onClick={() => setFilters({})} className="p-0 border-0 small opacity-50" style={{ fontSize: '0.7rem' }}>{t('clear_filters')}</CButton>
-                                        </CTableHeaderCell>
-                                    </CTableRow>
-                                </CTableHead>
-                                <CTableBody>
-                                    {addresses.length === 0 ? (
-                                        <CTableRow>
-                                            <CTableDataCell colSpan={6} className="text-center py-5 text-secondary opacity-50 d-flex flex-column align-items-center gap-2">
-                                                <MapPin size={40} />
-                                                Aucune adresse trouvée
-                                            </CTableDataCell>
-                                        </CTableRow>
-                                    ) : (
-                                        addresses.map((address) => (
-                                            <CTableRow key={address.id} className="hover-lift transition-all">
-                                                <CTableDataCell className="ps-4 small text-secondary">#{address.id}</CTableDataCell>
-                                                <CTableDataCell>
-                                                    <div className="fw-bold text-primary small mb-1">{address.alias}</div>
-                                                    {address.company && <div className="text-muted small d-flex align-items-center gap-1"><Building size={12}/> {address.company}</div>}
-                                                </CTableDataCell>
-                                                <CTableDataCell className="small">
-                                                    <div className="fw-bold">{address.firstname} {address.lastname}</div>
-                                                    {address.phone_mobile && <div className="text-muted"><Phone size={12} className="me-1"/>{address.phone_mobile}</div>}
-                                                </CTableDataCell>
-                                                <CTableDataCell className="small">
-                                                    <div>{address.address1}</div>
-                                                    <div className="text-muted">{address.postcode} {address.city}</div>
-                                                </CTableDataCell>
-                                                <CTableDataCell className="small">
-                                                    <Link href={`/shops/${shop.id}/customers/${address.id_customer}`} className="d-flex align-items-center gap-1 text-decoration-none">
-                                                        <User size={14}/> ID: {address.id_customer}
-                                                    </Link>
-                                                </CTableDataCell>
-                                                <CTableDataCell className="text-end pe-4">
-                                                    <div className="d-flex justify-content-end gap-1">
-                                                        <CButton color="danger" variant="ghost" size="sm" title="Supprimer" onClick={() => setDeletingAddressId(address.id)}>
-                                                            <Trash2 size={16} />
-                                                        </CButton>
-                                                        {/* On utilisera l'edit client pour l'instant ou on pourra créer une page edit dédié plus tard si besoin */}
-                                                        {/* L'utilisateur a demandé d'ajouter edit et supprimer aussi */}
-                                                        {/* Je vais lier vers une route edit d'adresse que je vais créer */}
-                                                        <Link href={`/shops/${shop.id}/addresses/${address.id}/edit`}>
-                                                            <CButton color="warning" variant="ghost" size="sm" title="Modifier">
-                                                                <Settings size={16} />
-                                                            </CButton>
-                                                        </Link>
-                                                    </div>
-                                                </CTableDataCell>
-                                            </CTableRow>
-                                        ))
-                                    )}
-                                </CTableBody>
-                            </CTable>
-                        )}
+                        {renderTabContent()}
                     </CCardBody>
                 </CCard>
 
-                <Pagination 
-                    currentPage={params.page} 
-                    total={total} 
-                    limit={params.limit}
-                    onPageChange={handlePageChange} 
-                    onLimitChange={handleLimitChange}
-                />
+                <Pagination currentPage={params.page} total={total} limit={params.limit} onPageChange={handlePageChange} onLimitChange={handleLimitChange} />
             </CContainer>
 
-            {/* Delete Customer Confirmation Modal */}
             <CModal visible={!!deletingCustomerId} onClose={() => setDeletingCustomerId(null)} alignment="center">
-                <CModalHeader>
-                    <CModalTitle>Confirmer la suppression du client</CModalTitle>
-                </CModalHeader>
-                <CModalBody>
-                    <p>Voulez-vous vraiment supprimer ce client de PrestaShop ? Cette action est irréversible.</p>
-                </CModalBody>
+                <CModalHeader><CModalTitle>Confirmer suppression</CModalTitle></CModalHeader>
+                <CModalBody><p>Voulez-vous vraiment supprimer ce client ?</p></CModalBody>
                 <CModalFooter>
                     <CButton color="secondary" onClick={() => setDeletingCustomerId(null)}>Annuler</CButton>
-                    <CButton color="danger" className="text-white" onClick={handleDeleteCustomer}>Supprimer définitivement</CButton>
+                    <CButton color="danger" className="text-white" onClick={handleDeleteCustomer}>Supprimer</CButton>
                 </CModalFooter>
             </CModal>
 
-            {/* Delete Address Confirmation Modal */}
             <CModal visible={!!deletingAddressId} onClose={() => setDeletingAddressId(null)} alignment="center">
-                <CModalHeader>
-                    <CModalTitle>Confirmer la suppression de l'adresse</CModalTitle>
-                </CModalHeader>
-                <CModalBody>
-                    <p>Voulez-vous vraiment supprimer cette adresse ? Cette action est irréversible dans PrestaShop.</p>
-                </CModalBody>
+                <CModalHeader><CModalTitle>Confirmer suppression adresse</CModalTitle></CModalHeader>
+                <CModalBody><p>Voulez-vous vraiment supprimer cette adresse ?</p></CModalBody>
                 <CModalFooter>
                     <CButton color="secondary" onClick={() => setDeletingAddressId(null)}>Annuler</CButton>
-                    <CButton color="danger" className="text-white" onClick={handleDeleteAddress}>Supprimer l'adresse</CButton>
+                    <CButton color="danger" className="text-white" onClick={handleDeleteAddress}>Supprimer</CButton>
                 </CModalFooter>
             </CModal>
         </AppLayout>
