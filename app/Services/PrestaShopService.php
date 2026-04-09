@@ -335,7 +335,7 @@ XML;
         try {
             $endpoint = $baseUrl . '/modules?io_format=JSON&display=full&filter[active]=1&ws_key=' . $apiKey;
             $response = Http::withoutVerifying()->get($endpoint);
-            
+
             if ($response->successful()) {
                 $body = $response->body();
                 // Check if response is XML (PrestaShop sometimes ignores io_format=JSON for modules)
@@ -355,7 +355,7 @@ XML;
                     }
                     return $modules;
                 }
-                
+
                 return $response->json()['modules'] ?? [];
             }
             return [];
@@ -408,6 +408,230 @@ XML;
             \Log::error('PS uploadProductImage exception: ' . $e->getMessage());
             return ['success' => false, 'error' => $e->getMessage()];
         }
+    }
+
+    /**
+     * Get KS1 related configuration settings from PrestaShop.
+     */
+    public function getKs1Settings(string $url, string $apiKey): array
+    {
+        $apiKey = trim($apiKey);
+        $baseUrl = rtrim($url, '/');
+        if (!str_ends_with($baseUrl, '/api')) {
+            $baseUrl .= '/api';
+        }
+
+        try {
+            // Explicit list of keys to fetch to avoid unreliable wildcard support
+            $keys = [
+                'psks1_ks1_id',
+                'psks1_user',
+                'psks1_password',
+                'psks1_salesman',
+                'psks1_shop_identifier',
+                'psks1_shipping_cost_id',
+                'psks1_conditions',
+                'psks1_conditions_days',
+                'psks1_discount',
+                'psks1_discount_days',
+                'psks1_order_states',
+                'psks1_project',
+                'psks1_delivery_date',
+                'psks1_weight_per_package'
+            ];
+            $filter = '[' . implode('|', $keys) . ']';
+
+            $endpoint = $baseUrl . '/configurations?io_format=JSON&display=full&filter[name]=' . $filter . '&ws_key=' . $apiKey;
+            $response = Http::withoutVerifying()->get($endpoint);
+            if ($response->successful()) {
+                $body = $response->body();
+                $configs = [];
+
+                // Handle XML response if JSON was ignored by PrestaShop
+                if (str_contains($body, '<?xml') || str_contains($body, '<prestashop')) {
+                    $xml = new \SimpleXMLElement($body);
+                    if (isset($xml->configurations->configuration)) {
+                        foreach ($xml->configurations->configuration as $configNode) {
+                            $configData = [];
+                            if (isset($configNode->name) && isset($configNode->value)) {
+                                $configData = [
+                                    'name' => (string) $configNode->name,
+                                    'value' => (string) $configNode->value,
+                                ];
+                            } else {
+                                // Fallback: if only ID is returned, fetch details
+                                $id = (int) $configNode['id'];
+                                $configData = $this->getResourceDetails($url, $apiKey, 'configurations', $id);
+                            }
+                            if ($configData)
+                                $configs[] = $configData;
+                        }
+                    }
+                } else {
+                    $data = $response->json();
+                    $rawConfigs = $data['configurations'] ?? [];
+
+                    foreach ($rawConfigs as $item) {
+                        if (isset($item['name']) && isset($item['value'])) {
+                            $configs[] = $item;
+                        } elseif (isset($item['id'])) {
+                            // Fallback: if only ID is returned, fetch details
+                            $configData = $this->getResourceDetails($url, $apiKey, 'configurations', (int) $item['id']);
+                            if ($configData)
+                                $configs[] = $configData;
+                        }
+                    }
+                }
+
+                if (empty($configs)) {
+                    return [];
+                }
+
+                $rawSettings = [];
+                foreach ($configs as $config) {
+                    $rawSettings[$config['name']] = $config['value'];
+                }
+
+                // Map to frontend expected keys
+                $mapped = [
+                    'ks1_id' => $rawSettings['psks1_ks1_id'] ?? '',
+                    'ks1_user' => $rawSettings['psks1_user'] ?? '',
+                    'ks1_pass' => $rawSettings['psks1_password'] ?? '',
+                    'ks1_salesman' => $rawSettings['psks1_salesman'] ?? '',
+                    'ks1_shop_identifier' => $rawSettings['psks1_shop_identifier'] ?? '',
+                    'ks1_project' => $rawSettings['psks1_project'] ?? 'Lager',
+                    'shipping_cost_id' => $rawSettings['psks1_shipping_cost_id'] ?? '9999',
+                    'conditions' => $rawSettings['psks1_conditions'] ?? '14 Tage Netto',
+                    'conditions_days' => (int) ($rawSettings['psks1_conditions_days'] ?? 14),
+                    'discount' => (float) ($rawSettings['psks1_discount'] ?? 0),
+                    'discount_days' => (int) ($rawSettings['psks1_discount_days'] ?? 0),
+                    'delivery_date' => (int) ($rawSettings['psks1_delivery_date'] ?? 4),
+                    'weight_per_package' => (float) ($rawSettings['psks1_weight_per_package'] ?? 15),
+                ];
+
+                // Special handling for PHP serialized order_states
+                if (!empty($rawSettings['psks1_order_states'])) {
+                    try {
+                        // Very basic "unserialize" for simple arrays like a:1:{i:0;i:2;}
+                        // Since we can't safely use native unserialize on untrusted API data without care,
+                        // and it's usually just IDs, let's try to extract numbers.
+                        if (preg_match_all('/i:(\d+);/', $rawSettings['psks1_order_states'], $matches)) {
+                            $mapped['order_states'] = array_map('intval', $matches[1]);
+                        }
+                    } catch (Exception $e) {
+                        $mapped['order_states'] = [2];
+                    }
+                }
+
+                return $mapped;
+            }
+        } catch (Exception $e) {
+            \Log::error("PS getKs1Settings error: " . $e->getMessage());
+        }
+        return [];
+    }
+
+    /**
+     * Update KS1 configurations in PrestaShop.
+     */
+    public function updateKs1Settings(string $url, string $apiKey, array $settings): bool
+    {
+        $apiKey = trim($apiKey);
+        $baseUrl = rtrim($url, '/');
+        if (!str_ends_with($baseUrl, '/api')) {
+            $baseUrl .= '/api';
+        }
+
+        // Mapping: Local Key -> PrestaShop Key
+        $mapping = [
+            'ks1_id' => 'psks1_ks1_id',
+            'ks1_user' => 'psks1_user',
+            'ks1_pass' => 'psks1_password',
+            'ks1_salesman' => 'psks1_salesman',
+            'ks1_shop_identifier' => 'psks1_shop_identifier',
+            'shipping_cost_id' => 'psks1_shipping_cost_id',
+            'conditions' => 'psks1_conditions',
+            'conditions_days' => 'psks1_conditions_days',
+            'discount' => 'psks1_discount',
+            'discount_days' => 'psks1_discount_days',
+            'order_states' => 'psks1_order_states',
+            'ks1_project' => 'psks1_project',
+            'delivery_date' => 'psks1_delivery_date',
+            'weight_per_package' => 'psks1_weight_per_package',
+        ];
+
+        foreach ($mapping as $localKey => $psKey) {
+            if (!array_key_exists($localKey, $settings))
+                continue;
+
+            $value = $settings[$localKey] ?? '';
+
+            // Case: order_states must be serialized for PrestaShop
+            if ($localKey === 'order_states' && is_array($value)) {
+                $serialized = "a:" . count($value) . ":{";
+                foreach ($value as $i => $idVal) {
+                    $serialized .= "i:$i;i:$idVal;";
+                }
+                $serialized .= "}";
+                $value = $serialized;
+            }
+
+            try {
+                // 1. Search if config exists to get ID
+                $searchRes = Http::withoutVerifying()->get($baseUrl . "/configurations", [
+                    'io_format' => 'JSON',
+                    'display' => '[id]',
+                    'filter[name]' => $psKey,
+                    'ws_key' => $apiKey
+                ]);
+
+                if (!$searchRes->successful()) {
+                    continue;
+                }
+
+                $configs = $searchRes->json()['configurations'] ?? [];
+
+                foreach ($configs as $config) {
+                    $id = $config['id'];
+                    $xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+                            <prestashop xmlns:xlink=\"http://www.w3.org/1999/xlink\">
+                                <configuration>
+                                    <id><![CDATA[{$id}]]></id>
+                                    <name><![CDATA[{$psKey}]]></name>
+                                    <value><![CDATA[{$value}]]></value>
+                                </configuration>
+                            </prestashop>";
+
+                    $putRes = Http::withoutVerifying()->withBody($xml, 'application/xml')
+                        ->put($baseUrl . "/configurations/{$id}?ws_key={$apiKey}");
+
+                    if (!$putRes->successful()) {
+                        \Log::error("PS Update PUT Failed for $psKey (ID $id): " . $putRes->status() . " - " . $putRes->body());
+                    }
+                }
+
+                if (empty($configs)) {
+                    $xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+                            <prestashop xmlns:xlink=\"http://www.w3.org/1999/xlink\">
+                                <configuration>
+                                    <name><![CDATA[{$psKey}]]></name>
+                                    <value><![CDATA[{$value}]]></value>
+                                </configuration>
+                            </prestashop>";
+
+                    $postRes = Http::withoutVerifying()->withBody($xml, 'application/xml')
+                        ->post($baseUrl . "/configurations?ws_key={$apiKey}");
+
+                    if (!$postRes->successful()) {
+                        \Log::error("PS Update POST Failed for $psKey: " . $postRes->status() . " - " . $postRes->body());
+                    }
+                }
+            } catch (\Exception $e) {
+                \Log::error("Failed to sync $psKey to PrestaShop: " . $e->getMessage());
+            }
+        }
+
+        return true;
     }
 
     /**

@@ -73,6 +73,26 @@ export default function Edit({ shop, categories, order_states = [] }: { shop: Sh
         }
     };
 
+    const handleFetchKs1Settings = async () => {
+        if (!confirm('Voulez-vous écraser les paramètres actuels par ceux de PrestaShop ?')) return;
+        
+        try {
+            const response = await fetch(`/shops/${shop.id}/fetch-ks1-settings`);
+            const dataRes = await response.json();
+            if (dataRes.success) {
+                setData('ks1_settings', {
+                    ...data.ks1_settings,
+                    ...dataRes.settings
+                });
+            } else {
+                alert('Échec de la récupération des paramètres depuis PrestaShop.');
+            }
+        } catch (error) {
+            console.error(error);
+            alert('Erreur lors de la récupération des paramètres.');
+        }
+    };
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={`${t('edit')} ${shop.name}`} />
@@ -157,11 +177,12 @@ export default function Edit({ shop, categories, order_states = [] }: { shop: Sh
                                     <div className="mb-3">
                                         <CFormLabel htmlFor="api_key">{t('webservice_key')}</CFormLabel>
                                         <CFormInput
-                                            type="password"
+                                            type="text"
                                             id="api_key"
                                             value={data.api_key}
                                             onChange={(e) => setData('api_key', e.target.value)}
                                             invalid={!!errors.api_key}
+                                            style={{ fontFamily: 'monospace' }}
                                         />
                                         {errors.api_key && <div className="text-danger small mt-1">{errors.api_key}</div>}
                                     </div>
@@ -198,9 +219,20 @@ export default function Edit({ shop, categories, order_states = [] }: { shop: Sh
                                     </div>
 
                                     <div className="mb-4 p-3 bg-body-tertiary rounded border border-primary border-opacity-10">
-                                        <div className="d-flex align-items-center gap-2 mb-3">
-                                            <RefreshCw size={20} className="text-primary" />
-                                            <h5 className="mb-0 fw-bold">Synchronisation KS1</h5>
+                                        <div className="d-flex align-items-center justify-content-between mb-3">
+                                            <div className="d-flex align-items-center gap-2">
+                                                <RefreshCw size={20} className="text-primary" />
+                                                <h5 className="mb-0 fw-bold">Synchronisation KS1</h5>
+                                            </div>
+                                            <CButton 
+                                                size="sm" 
+                                                color="info" 
+                                                variant="outline" 
+                                                className="d-flex align-items-center gap-1"
+                                                onClick={handleFetchKs1Settings}
+                                            >
+                                                <RefreshCw size={14} /> Importer de PrestaShop
+                                            </CButton>
                                         </div>
 
                                         <div className="mb-3">

@@ -55,6 +55,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::put('/{shop}', [\App\Http\Controllers\ShopController::class, 'update'])->name('update');
         Route::delete('/{shop}', [\App\Http\Controllers\ShopController::class, 'destroy'])->name('destroy');
         Route::post('/{shop}/test', [\App\Http\Controllers\ShopController::class, 'testConnection'])->name('test');
+        Route::get('/{shop}/fetch-ks1-settings', [\App\Http\Controllers\ShopController::class, 'fetchKs1Settings'])->name('fetch-ks1-settings');
     });
 });
 

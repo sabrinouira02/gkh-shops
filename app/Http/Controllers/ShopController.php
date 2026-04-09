@@ -69,9 +69,18 @@ class ShopController extends Controller
     {
         $orderStates = [];
         try {
-            $orderStates = $this->service->getOrderStates($shop->url, $shop->api_key);
+            $rawStates = $this->service->getOrderStates($shop->url, $shop->api_key);
+            $orderStates = array_map(function ($state) {
+                $name = $state['name'] ?? 'N/A';
+                if (is_array($name)) {
+                    $name = $name[0]['value'] ?? 'N/A';
+                }
+                return [
+                    'id' => $state['id'],
+                    'name' => $name
+                ];
+            }, $rawStates);
         } catch (\Exception $e) {
-            \Log::error("Get Order States Error: " . $e->getMessage());
         }
 
         return Inertia::render('Shops/Edit', [
@@ -107,6 +116,11 @@ class ShopController extends Controller
 
         $shop->update($validated);
 
+        // Synchronize KS1 settings back to PrestaShop if enabled
+        if ($shop->ks1_enabled && !empty($shop->ks1_settings)) {
+            $this->service->updateKs1Settings($shop->url, $shop->api_key, $shop->ks1_settings);
+        }
+
         return redirect()->route('shops.index')->with('success', 'Boutique mise à jour avec succès.');
     }
 
@@ -138,7 +152,6 @@ class ShopController extends Controller
             $employees = $this->service->getEmployees($shop->url, $shop->api_key);
             $modules = $this->service->getModules($shop->url, $shop->api_key);
         } catch (\Exception $e) {
-            \Log::error("Shop Show error: " . $e->getMessage());
         }
 
         return Inertia::render('Shops/Show', [
@@ -740,4 +753,13 @@ class ShopController extends Controller
         }
     }
 
+    public function fetchKs1Settings(Shop $shop)
+    {
+        $settings = $this->service->getKs1Settings($shop->url, $shop->api_key);
+        
+        return response()->json([
+            'success' => !empty($settings),
+            'settings' => $settings
+        ]);
+    }
 }
